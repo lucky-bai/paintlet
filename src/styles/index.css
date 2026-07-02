@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/*
+ * VibePaint theme tokens.
+ *
+ * Windows 11 Paint layout, macOS clothing. All surface/text/accent colors are
+ * defined here as CSS variables so components stay theme-agnostic — they read
+ * var(--vp-*), never a hard-coded color. Dark mode flips the same variables.
+ *
+ * Tailwind v4 is configured CSS-first (@import above); we expose the tokens to
+ * Tailwind via @theme so `bg-surface`, `text-ink`, etc. resolve to the vars.
+ */
+
+@theme {
+  --color-surface: var(--vp-surface);
+  --color-surface-raised: var(--vp-surface-raised);
+  --color-work: var(--vp-work);
+  --color-ink: var(--vp-ink);
+  --color-ink-muted: var(--vp-ink-muted);
+  --color-hairline: var(--vp-hairline);
+  --color-accent: var(--vp-accent);
+  --color-hover: var(--vp-hover);
+}
+
+:root {
+  /* Light mode — white/neutral surfaces, hairline separators. */
+  --vp-surface: #f4f4f5;        /* toolbars, status bar */
+  --vp-surface-raised: #ffffff; /* popovers, canvas */
+  --vp-work: #d7d8db;           /* neutral gray work area behind the canvas */
+  --vp-ink: #18181b;            /* primary text/icons */
+  --vp-ink-muted: #71717a;      /* secondary text (status bar) */
+  --vp-hairline: #00000014;     /* dividers, borders */
+  --vp-accent: #0a84ff;         /* macOS system-blue-ish; overridden at runtime */
+  --vp-hover: #00000010;        /* subtle button hover fill */
+}
+
+:root[data-theme="dark"] {
+  /* Dark mode — mirrors the macOS dark appearance. */
+  --vp-surface: #1c1c1e;
+  --vp-surface-raised: #2c2c2e;
+  --vp-work: #131315;
+  --vp-ink: #f2f2f7;
+  --vp-ink-muted: #98989f;
+  --vp-hairline: #ffffff1f;
+  --vp-accent: #0a84ff;
+  --vp-hover: #ffffff14;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  color: var(--vp-ink);
+  background: var(--vp-work);
+  /* The app owns scrolling within panes; the window itself never scrolls. */
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  /* No text selection on chrome — this is an app, not a document. */
+  user-select: none;
+  -webkit-user-select: none;
+}
