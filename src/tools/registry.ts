@@ -8,6 +8,7 @@ import { RectangleTool } from "./RectangleTool";
 import { EllipseTool } from "./EllipseTool";
 import { FillTool } from "./FillTool";
 import { EyedropperTool } from "./EyedropperTool";
+import { SelectTool } from "./SelectTool";
 
 // id → tool instance. Tools are stateful (they track an in-progress stroke), so
 // we hold one shared instance each. Adding a pointer tool is a one-line add here
@@ -21,6 +22,7 @@ const registry: Partial<Record<ToolId, Tool>> = {
   ellipse: new EllipseTool(),
   fill: new FillTool(),
   eyedropper: new EyedropperTool(),
+  select: new SelectTool(),
 };
 
 // The text tool needs a floating DOM input, so it isn't a pointer-driven Tool;

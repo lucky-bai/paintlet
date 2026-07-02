@@ -4,8 +4,13 @@ import type { ToolId } from "../engine/types";
 import { Icon, type IconName } from "./Icon";
 import { ToolButton } from "./ToolButton";
 import { ColorControls } from "./ColorControls";
+import { TextOptions } from "./TextOptions";
 
 type ToolDef = { id: ToolId; icon: IconName; label: string; key: string };
+
+const SELECT_TOOLS: ToolDef[] = [
+  { id: "select", icon: "select", label: "Select", key: "S" },
+];
 
 const DRAW_TOOLS: ToolDef[] = [
   { id: "pencil", icon: "pencil", label: "Pencil", key: "P" },
@@ -49,11 +54,33 @@ function ToolGroup({ tools }: { tools: ToolDef[] }) {
   );
 }
 
+function SizeSlider() {
+  const brushSize = usePaintStore((s) => s.brushSize);
+  const setBrushSize = usePaintStore((s) => s.setBrushSize);
+  return (
+    <div className="flex items-center gap-2 px-1">
+      <span className="text-xs text-ink-muted">Size</span>
+      <input
+        type="range"
+        min={1}
+        max={64}
+        step={1}
+        value={brushSize}
+        onChange={(e) => setBrushSize(Number(e.target.value))}
+        className="w-24 accent-[var(--vp-accent)]"
+        title={`${brushSize}px`}
+      />
+      <span className="w-8 text-right text-xs tabular-nums text-ink-muted">
+        {brushSize}px
+      </span>
+    </div>
+  );
+}
+
 export function Toolbar() {
   const canUndo = usePaintStore((s) => s.canUndo);
   const canRedo = usePaintStore((s) => s.canRedo);
-  const brushSize = usePaintStore((s) => s.brushSize);
-  const setBrushSize = usePaintStore((s) => s.setBrushSize);
+  const activeToolId = usePaintStore((s) => s.activeToolId);
 
   return (
     <div className="flex shrink-0 items-center gap-1 border-b border-hairline bg-surface px-3 py-2">
@@ -68,28 +95,16 @@ export function Toolbar() {
       </div>
 
       <Divider />
+      <ToolGroup tools={SELECT_TOOLS} />
+      <Divider />
       <ToolGroup tools={DRAW_TOOLS} />
       <Divider />
       <ToolGroup tools={SHAPE_TOOLS} />
       <Divider />
 
-      {/* Size slider. */}
-      <div className="flex items-center gap-2 px-1">
-        <span className="text-xs text-ink-muted">Size</span>
-        <input
-          type="range"
-          min={1}
-          max={64}
-          step={1}
-          value={brushSize}
-          onChange={(e) => setBrushSize(Number(e.target.value))}
-          className="w-24 accent-[var(--vp-accent)]"
-          title={`${brushSize}px`}
-        />
-        <span className="w-8 text-right text-xs tabular-nums text-ink-muted">
-          {brushSize}px
-        </span>
-      </div>
+      {/* Contextual options: text styling when the Text tool is active, else the
+          shared stroke-size slider. */}
+      {activeToolId === "text" ? <TextOptions /> : <SizeSlider />}
 
       <Divider />
 

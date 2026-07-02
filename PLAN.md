@@ -18,28 +18,35 @@ Where the app stands today, grouped by state.
 - **Shapes:** line, rectangle (outline), ellipse (outline). Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-drag.
 - **Flood fill** (bucket) — scanline fill in a single pass.
 - **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2).
-- **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps); buttons grey out when unavailable.
+- **Text** — multi-line editor with font family, size, and bold / italic; typed in Color 1.
+- **Selection** — rectangular marquee (**Shift** = square) with marching ants; drag to move (leaves a background-color hole); **Delete** clears it; **Select All** (⌘A).
+- **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
+- **Save / Open** — native dialogs, **PNG and JPEG**; window title + dirty-dot track the current file.
+- **Image ops** — Resize (dialog with aspect-lock and resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90°. All undoable across the size change.
+- **Native macOS menu bar** — File / Edit / Image / View with real ⌘-shortcuts; **New** (⌘N).
+- **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
 - **Colors** — MS Paint palette grid, overlapping Color 1 / Color 2 swatches, swap, and the native macOS color panel for custom colors.
-- **Size slider** (1–64 px) and **zoom** (status-bar slider + `−`/`+` + %, 0.25×–8×, crisp `pixelated` scaling).
+- **Size slider** (1–64 px) and **zoom** (status-bar slider + `−`/`+` + %, ⌘+ / ⌘− / ⌘0, 0.25×–8×, crisp `pixelated` scaling).
+- **Tool shortcuts** — `S P B F T E I L R O` select the tools; `Esc` cancels the current action / deselects.
 - **Status bar** — live cursor coordinates and image dimensions.
 - **Theme** — light / dark following the macOS appearance, switching live.
 - **Window & canvas** — native transparent title bar (traffic lights) with a draggable strip and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
 
 ### Partially working
 
-- **Text** — click to place a single-line input, type, **Enter** commits / **Esc** cancels. Size rides the brush slider. Missing: font/size controls, multi-line, reposition-before-commit, styling.
-- **Zoom / navigation** — the slider works, but there's no fit-to-window, no scroll-wheel / pinch zoom, and no dedicated pan (scrollbars only).
+- **Text** — one style per box, committed on the next action or tool switch; no reposition-by-drag, alignment, or background fill.
+- **Zoom / navigation** — slider + shortcuts work, but there's no fit-to-window, no scroll-wheel / pinch zoom, and no dedicated pan (scrollbars only).
 - **Shapes** — outline only; no fill mode or stroke-style options yet.
 - **Eraser** — erases to Color 2 (opaque); no erase-to-transparent.
+- **Clipboard in text fields** — ⌘V paste into the text editor is limited by the webview; the canvas image clipboard is unaffected.
 
 ### Not built yet
 
-- **Save / Open (PNG)** — dialog + fs permissions are granted on the Rust side, but there's no UI or logic yet, so work can't be persisted.
-- **Native menu bar + full shortcuts** — only ⌘Z / ⌘⇧Z are live; the File/Edit/View menus and letter shortcuts (`P B E L R O F I`) aren't wired.
-- **New / Clear canvas.**
-- **Selection** (marquee, move, cut/copy/paste) and **crop**.
-- **Resize / rotate / flip**, and the canvas resize handles shown in the mockup.
-- **System clipboard**, **layers**, extra shapes / brush shapes / lasso / airbrush / invert, and JPG/BMP/GIF formats.
+- **Selection handles / free-form (lasso) select**, and the on-canvas resize handles shown in the mockup.
+- **Fit-to-window, scroll-wheel / pinch zoom, and pan.**
+- **Layers.**
+- **More shapes / brush shapes / airbrush / invert colors**, and BMP / GIF formats.
+- **Print.**
 
 ---
 
@@ -411,13 +418,13 @@ engine.snapshot('open');                 // seed history
 
 - **M0 — Scaffold** · *Done.* Tauri + React + TS + Vite, Tailwind v4, macOS transparent-titlebar window, light/dark theme tokens, shell.
 - **M1 — Engine + first tool + history** · *Done.* `CanvasEngine` (base/overlay), commit flow, snapshot `History`, pointer plumbing, `coords.ts`, pencil, color model, palette, top toolbar. (Undo works from here.)
-- **M2 — Menu + shortcuts** · *To do.* Native macOS menu, New/clear; ⌘Z/⇧⌘Z and toolbar undo/redo already work outside the menu — the letter shortcuts and File/Edit/View menus remain.
+- **M2 — Menu + shortcuts** · *Done.* Native macOS menu bar (File/Edit/Image/View) with ⌘-accelerators, New; single-key tool shortcuts and Esc-cancel via a keydown handler.
 - **M3 — Shape & brush tools** · *Done.* Line, rectangle, ellipse (overlay preview); eraser; brush + size slider.
 - **M4 — Pixel tools** · *Done.* Flood fill, eyedropper.
-- **M5 — File I/O** · *To do.* Open + save/save-as PNG, dirty tracking, window title. (Dialog + fs permissions already granted.)
-- **M6 — Zoom** · *Partial.* Zoom slider + coordinate mapping + status bar (coords / dimensions / zoom %) done; fit-to-window, wheel/pinch zoom, and pan remain.
-- **M7 — Selection** · *To do.* Rectangular marquee, move, cut/copy/paste (internal clipboard first).
-- **M8 — Polish** · *Partial.* Text is a basic single-line editor; crop, resize/rotate/flip, more shapes/formats, and system clipboard remain.
+- **M5 — File I/O** · *Done.* Open + save/save-as PNG **and JPEG**, dirty tracking, window title. Bytes move through a Rust command so any user-chosen path works.
+- **M6 — Zoom** · *Partial.* Zoom slider, ⌘+/−/0, coordinate mapping, status bar done; fit-to-window, wheel/pinch zoom, and pan remain.
+- **M7 — Selection** · *Done.* Rectangular marquee with marching ants; move, delete, select-all, and copy/cut/paste through the system clipboard (internal fallback).
+- **M8 — Polish** · *Partial.* Multi-line styled text, crop, resize, flip H/V, and rotate 90° done; more shapes/formats, fit-to-window zoom, and layers remain.
 
 ### Keyboard shortcuts (via native menu)
 
