@@ -461,9 +461,21 @@ export class CanvasEngine {
   }
 
   // Drop pasted pixels in as a float at the top-left, selected and ready to
-  // drag. Additive (no hole), so deleting it just removes it.
+  // drag. Additive (no hole), so deleting it just removes it. If the paste is
+  // larger than the canvas, grow the canvas to fit rather than clipping it —
+  // matching Paint, which enlarges the bitmap to hold a larger paste.
   pasteImageData(img: ImageData): void {
     this.commitFloat();
+
+    const newW = Math.max(this.width, img.width);
+    const newH = Math.max(this.height, img.height);
+    if (newW !== this.width || newH !== this.height) {
+      const prev = this.copyBase(); // existing pixels, at the old size
+      this.applySize(newW, newH); // clears all three layers
+      this.fillBase("#ffffff"); // white the newly exposed area
+      this.base.drawImage(prev, 0, 0); // restore the old pixels, top-left
+    }
+
     const fc = document.createElement("canvas");
     fc.width = img.width;
     fc.height = img.height;
@@ -472,12 +484,7 @@ export class CanvasEngine {
     this.floatLifted = false;
     this.floatX = 0;
     this.floatY = 0;
-    this.selection = {
-      x: 0,
-      y: 0,
-      w: Math.min(img.width, this.width),
-      h: Math.min(img.height, this.height),
-    };
+    this.selection = { x: 0, y: 0, w: img.width, h: img.height };
     this.dirty = true;
     this.emit();
   }
