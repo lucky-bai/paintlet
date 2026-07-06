@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "io.efficientnlp.vibepaint",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "pnpm dev:web",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
   "app": {

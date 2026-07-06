@@ -1,0 +1,5 @@
+# pnpm 11 stores project settings here (no longer in the package.json "pnpm"
+# field). Allow esbuild — Vite's bundler — to run its build script; pnpm blocks
+# dependency build scripts by default.
+allowBuilds:
+  esbuild: true

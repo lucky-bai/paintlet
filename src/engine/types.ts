@@ -20,7 +20,22 @@ export type ToolId =
   | "ellipse"
   | "fill"
   | "eyedropper"
-  | "select" // reserved — not built yet
-  | "text"; // reserved — not built yet
+  | "select"
+  | "text";
 
 export type Theme = "system" | "light" | "dark";
+
+// A rectangular region in logical image pixels (integer bounds). Used by the
+// selection tool, copy/paste, and crop.
+export type Rect = { x: number; y: number; w: number; h: number };
+
+// Text tool styling, mirrored in the store so the contextual options bar can
+// edit it and the raster step can read it back.
+export type TextStyle = {
+  fontFamily: string;
+  fontSize: number; // px, in logical image pixels
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+};

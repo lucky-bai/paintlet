@@ -2,39 +2,57 @@ import { useEffect, useRef, useState } from "react";
 import { engine, usePaintStore } from "../state/store";
 import { screenToCanvas } from "../engine/coords";
 import { getTool } from "../tools/registry";
-import type { MouseButton } from "../engine/types";
+import type { MouseButton, TextStyle } from "../engine/types";
 import type { PointerInfo, ToolContext } from "../tools/Tool";
 
-// Map the size slider to a text point size (px). Text has no dedicated size
-// control yet, so it rides the shared brush size.
-const fontPxFor = (brushSize: number) => Math.max(12, brushSize * 3);
+// Multi-line spacing factor for the text tool (matches the editor and raster).
+const LINE_HEIGHT = 1.2;
+
+const fontString = (ts: TextStyle, scale = 1) =>
+  `${ts.italic ? "italic " : ""}${ts.bold ? "bold " : ""}${ts.fontSize * scale}px ${ts.fontFamily}`;
 
 type TextEdit = { cx: number; cy: number; value: string };
 
-// Hosts the stacked base + overlay canvases and owns all pointer plumbing:
-// map screen → logical coords, build a ToolContext from current store state,
-// and dispatch to the active tool's lifecycle hooks. The text tool is special-
-// cased here because it needs a floating DOM input rather than pointer strokes.
+// Hosts the stacked base + overlay + selection canvases and owns all pointer
+// plumbing: map screen → logical coords, build a ToolContext from current store
+// state, and dispatch to the active tool. Text is special-cased (a floating DOM
+// editor), and the selection layer draws marching ants on an animation loop.
 export function CanvasStage() {
   const baseRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
+  const selectionRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
 
   const { w, h } = usePaintStore((s) => s.imageSize);
   const zoom = usePaintStore((s) => s.view.zoom);
   const activeToolId = usePaintStore((s) => s.activeToolId);
   const color1 = usePaintStore((s) => s.color1);
-  const brushSize = usePaintStore((s) => s.brushSize);
+  const textStyle = usePaintStore((s) => s.textStyle);
+  const hasSelection = usePaintStore((s) => s.hasSelection);
 
   const [textEdit, setTextEdit] = useState<TextEdit | null>(null);
+  // Mirror into a ref so the tool-switch effect can read the latest edit
+  // without re-subscribing.
+  const textEditRef = useRef<TextEdit | null>(null);
+  textEditRef.current = textEdit;
 
-  // (Re)bind the engine when the document size changes (mount / New / Open /
-  // Resize). Zoom is CSS-only and must NOT re-attach — that would wipe pixels.
+  // Bind the engine to the three canvases once, on mount. Programmatic resizes
+  // (Open / Resize / Crop / undo) are handled inside the engine, which resizes
+  // the backing stores directly — so this must NOT re-run on size changes or it
+  // would wipe the pixels.
   useEffect(() => {
-    if (baseRef.current && overlayRef.current) {
-      engine.attach(baseRef.current, overlayRef.current, w, h);
+    if (baseRef.current && overlayRef.current && selectionRef.current) {
+      const s = usePaintStore.getState().imageSize;
+      engine.attach(
+        baseRef.current,
+        overlayRef.current,
+        selectionRef.current,
+        s.w,
+        s.h,
+      );
     }
-  }, [w, h]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Snapshot the current config into a ToolContext for the active action.
   const makeCtx = (): ToolContext => {
@@ -53,30 +71,98 @@ export function CanvasStage() {
     };
   };
 
+  // Measure the editor box (logical px) so the floating textarea matches what
+  // the rasterized text will occupy.
+  const measureBox = (value: string, ts: TextStyle) => {
+    const o = engine.overlay;
+    o.save();
+    o.font = fontString(ts);
+    const lines = value.length ? value.split("\n") : [""];
+    const width = Math.max(1, ...lines.map((l) => o.measureText(l).width));
+    o.restore();
+    const lh = Math.round(ts.fontSize * LINE_HEIGHT);
+    return { w: Math.ceil(width) + 2, h: lines.length * lh };
+  };
+
   // Rasterize an in-progress text edit onto the base and record a history step.
   const commitText = (t: TextEdit) => {
     if (!t.value.trim()) return;
     const s = usePaintStore.getState();
+    const ts = s.textStyle;
     const o = engine.overlay;
+    const lh = Math.round(ts.fontSize * LINE_HEIGHT);
+    const pad = (lh - ts.fontSize) / 2; // center each line in its line box
+    const ruleW = Math.max(1, Math.round(ts.fontSize / 14)); // decoration thickness
+    o.save();
     o.fillStyle = s.color1;
     o.textBaseline = "top";
-    o.font = `${fontPxFor(s.brushSize)}px sans-serif`;
-    o.fillText(t.value, t.cx, t.cy);
+    o.font = fontString(ts);
+    t.value.split("\n").forEach((line, i) => {
+      const top = t.cy + i * lh + pad;
+      o.fillText(line, t.cx, top);
+      // Canvas text has no underline/strike; draw them as crisp rules spanning
+      // the measured line width, under and through the glyphs.
+      if ((ts.underline || ts.strike) && line.length) {
+        const w = o.measureText(line).width;
+        if (ts.underline)
+          o.fillRect(t.cx, Math.round(top + ts.fontSize * 0.92), w, ruleW);
+        if (ts.strike)
+          o.fillRect(t.cx, Math.round(top + ts.fontSize * 0.52), w, ruleW);
+      }
+    });
+    o.restore();
     engine.commit("text");
   };
 
-  const finishText = () => {
-    if (textEdit) commitText(textEdit);
-    setTextEdit(null);
-  };
+  // Commit the previous tool's pending state when the active tool changes:
+  // freehand/shape cleanup, selection bake-down, and pending-text rasterization.
+  const prevToolRef = useRef(activeToolId);
+  useEffect(() => {
+    const prev = prevToolRef.current;
+    if (prev !== activeToolId) {
+      if (prev === "text") {
+        if (textEditRef.current) commitText(textEditRef.current);
+        setTextEdit(null);
+      } else {
+        getTool(prev)?.onDeactivate?.(makeCtx());
+      }
+      prevToolRef.current = activeToolId;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeToolId]);
 
-  // Cancel an in-progress shape/stroke on Esc.
+  // Animate the selection marquee (marching ants). Runs only while something is
+  // selected/floating; also repaints the float on each frame so a drag-move
+  // follows the pointer smoothly.
+  useEffect(() => {
+    if (!hasSelection) {
+      engine.renderSelection(0);
+      return;
+    }
+    let raf = 0;
+    let offset = 0;
+    const loop = () => {
+      offset = (offset + 0.5) % 8;
+      engine.renderSelection(offset);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [hasSelection]);
+
+  // Esc cancels an in-progress stroke/shape, or deselects a finished selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && drawing.current) {
+      if (e.key !== "Escape") return;
+      if (drawing.current) {
         drawing.current = false;
         getTool(usePaintStore.getState().activeToolId)?.onDeactivate?.(makeCtx());
         engine.clearOverlay();
+      } else if (
+        usePaintStore.getState().activeToolId === "select" &&
+        engine.hasSelectionOrFloat()
+      ) {
+        engine.deselect();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -95,7 +181,7 @@ export function CanvasStage() {
   });
 
   const onPointerDown = (e: React.PointerEvent) => {
-    // Text tool: place/reposition the floating input instead of stroking.
+    // Text tool: place/reposition the floating editor instead of stroking.
     if (activeToolId === "text") {
       const pt = screenToCanvas(e.clientX, e.clientY, overlayRef.current!);
       if (textEdit) commitText(textEdit); // commit any existing edit first
@@ -132,6 +218,8 @@ export function CanvasStage() {
     getTool(activeToolId)?.cursor ??
     (activeToolId === "text" ? "text" : "default");
   const cssSize = { width: w * zoom, height: h * zoom };
+  const box = textEdit ? measureBox(textEdit.value, textStyle) : null;
+  const lineHeightPx = Math.round(textStyle.fontSize * LINE_HEIGHT) * zoom;
 
   return (
     <div
@@ -158,33 +246,47 @@ export function CanvasStage() {
               !drawing.current && usePaintStore.getState().setCursorPos(null)
             }
           />
+          {/* Selection layer: marquee + floating content. Pointer-transparent so
+              the overlay below keeps receiving pointer events. */}
+          <canvas
+            ref={selectionRef}
+            className="pointer-events-none absolute left-0 top-0"
+            style={{ ...cssSize, imageRendering: "pixelated" }}
+          />
 
-          {/* Floating text editor — rasterized onto the canvas on Enter/blur. */}
-          {textEdit && (
-            <input
+          {/* Floating multi-line text editor — rasterized onto the canvas when
+              a new action starts or the tool changes. */}
+          {textEdit && box && (
+            <textarea
               key={`${textEdit.cx},${textEdit.cy}`}
               autoFocus
               value={textEdit.value}
               spellCheck={false}
+              wrap="off"
               onChange={(e) =>
                 setTextEdit({ ...textEdit, value: e.target.value })
               }
-              onBlur={finishText}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                // Enter inserts a newline (multi-line); Esc cancels the edit.
+                if (e.key === "Escape") {
                   e.preventDefault();
-                  finishText();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
+                  e.stopPropagation();
                   setTextEdit(null);
                 }
               }}
-              className="absolute m-0 min-w-[2ch] border border-dashed border-black/40 bg-transparent p-0 leading-none outline-none"
+              className="absolute m-0 resize-none overflow-hidden whitespace-pre border border-dashed border-[var(--vp-accent)] bg-transparent p-0 outline-none"
               style={{
                 left: textEdit.cx * zoom,
                 top: textEdit.cy * zoom,
+                width: box.w * zoom + 6,
+                height: box.h * zoom,
                 color: color1,
-                font: `${fontPxFor(brushSize) * zoom}px sans-serif`,
+                font: fontString(textStyle, zoom),
+                lineHeight: `${lineHeightPx}px`,
+                textDecorationLine:
+                  `${textStyle.underline ? "underline " : ""}${
+                    textStyle.strike ? "line-through" : ""
+                  }`.trim() || "none",
               }}
             />
           )}

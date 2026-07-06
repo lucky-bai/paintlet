@@ -15,6 +15,7 @@ export type IconName =
   | "line"
   | "rectangle"
   | "ellipse"
+  | "select"
   | "swap";
 
 const PATHS: Record<IconName, ReactNode> = {
@@ -75,6 +76,10 @@ const PATHS: Record<IconName, ReactNode> = {
   line: <path d="M5 19 19 5" />,
   rectangle: <rect x="3" y="4" width="18" height="16" rx="1.5" />,
   ellipse: <circle cx="12" cy="12" r="9" />,
+  // Marquee: a dashed rectangle — the classic "select" cue.
+  select: (
+    <rect x="3" y="3" width="18" height="18" rx="1" strokeDasharray="3.5 3" />
+  ),
   swap: (
     <>
       <path d="M7 4 4 7l3 3" />

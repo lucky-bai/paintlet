@@ -14,32 +14,36 @@ Where the app stands today, grouped by state.
 
 ### Working
 
-- **Freehand:** pencil, brush, eraser. Left button paints Color 1, right button Color 2; the eraser always paints Color 2 (classic Paint).
-- **Shapes:** line, rectangle (outline), ellipse (outline). Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-drag.
-- **Flood fill** (bucket) — scanline fill in a single pass.
+- **Freehand:** pencil, brush, eraser. Left button paints Color 1, right button Color 2; the eraser always paints Color 2 (classic Paint). Continuous width slider (1–64 px).
+- **Shapes:** line, rectangle (outline), ellipse / circle (outline). Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-drag.
+- **Flood fill** (bucket) — exact-match scanline fill in a single pass.
 - **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2).
-- **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps); buttons grey out when unavailable.
-- **Colors** — MS Paint palette grid, overlapping Color 1 / Color 2 swatches, swap, and the native macOS color panel for custom colors.
-- **Size slider** (1–64 px) and **zoom** (status-bar slider + `−`/`+` + %, 0.25×–8×, crisp `pixelated` scaling).
+- **Text** — multi-line editor with font family, size, and bold / italic / underline / strikethrough; typed in Color 1; rasterized on commit and not re-editable afterward.
+- **Selection** — rectangular marquee (**Shift** = square) with marching ants; drag to move (leaves a background-color hole); **Delete** clears it; **Select All** (⌘A).
+- **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
+- **Save / Open** — native dialogs, **PNG (default) and JPEG**; window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
+- **Image ops** — Resize (pixel dimensions, aspect-locked by default, unlock to stretch, smooth vs nearest resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90°. All undoable across the size change.
+- **Native macOS menu bar** — File / Edit / Image / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All.
+- **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
+- **Colors** — MS Paint palette grid, overlapping Color 1 / Color 2 swatches, swap, and the native macOS color panel for continuous / RGB / hex (`#000`) custom colors.
+- **Zoom** — shortcuts for in / out / reset (⌘+ / ⌘− / ⌘0), plus a status-bar slider + %, 0.25×–8×, crisp `pixelated` scaling.
+- **Tool shortcuts** — `S P B F T E I L R O` select the tools; `Esc` cancels the current action / deselects.
 - **Status bar** — live cursor coordinates and image dimensions.
 - **Theme** — light / dark following the macOS appearance, switching live.
 - **Window & canvas** — native transparent title bar (traffic lights) with a draggable strip and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
+- **Toolchain** — pnpm; `pnpm dev` launches the full app.
 
-### Partially working
+### Not yet matching target scope
 
-- **Text** — click to place a single-line input, type, **Enter** commits / **Esc** cancels. Size rides the brush slider. Missing: font/size controls, multi-line, reposition-before-commit, styling.
-- **Zoom / navigation** — the slider works, but there's no fit-to-window, no scroll-wheel / pinch zoom, and no dedicated pan (scrollbars only).
-- **Shapes** — outline only; no fill mode or stroke-style options yet.
-- **Eraser** — erases to Color 2 (opaque); no erase-to-transparent.
+- **Aliased shapes & pencil** — shapes and the pencil currently render anti-aliased (canvas path stroking). The bucket fills by exact color match, so an anti-aliased outline leaves a one-pixel unfilled halo when filled. Target: hard-edged (aliased) rasterization for the pencil and every shape so fills reach the border. The brush stays anti-aliased.
+- **Discrete shape widths** — shapes share the continuous 1–64 px slider; target is a fixed 1 / 3 / 5 / 8 px selector for shapes, with the continuous slider reserved for pencil / brush.
+- **More shapes** — rounded rectangle, polygon, and curve are not built (line, rectangle, ellipse / circle are).
+- **Free-form (lasso) selection** — only the rectangular marquee exists.
+- **Resize by percentage** — the dialog takes pixel dimensions only; target adds a % mode alongside pixels.
 
-### Not built yet
+### Out of scope (won't build)
 
-- **Save / Open (PNG)** — dialog + fs permissions are granted on the Rust side, but there's no UI or logic yet, so work can't be persisted.
-- **Native menu bar + full shortcuts** — only ⌘Z / ⌘⇧Z are live; the File/Edit/View menus and letter shortcuts (`P B E L R O F I`) aren't wired.
-- **New / Clear canvas.**
-- **Selection** (marquee, move, cut/copy/paste) and **crop**.
-- **Resize / rotate / flip**, and the canvas resize handles shown in the mockup.
-- **System clipboard**, **layers**, extra shapes / brush shapes / lasso / airbrush / invert, and JPG/BMP/GIF formats.
+- Layers · transparency / alpha · AI features (Cocreator, generative fill) · stickers · advanced brushes (airbrush, calligraphy, watercolor, …) · shapes beyond the listed set.
 
 ---
 
@@ -308,67 +312,34 @@ Toolbar groups, left to right: **undo/redo** · **drawing tools** (pencil, brush
 
 ---
 
-## 7. Feature scope (ranked for this objective)
+## 7. Feature scope
 
-Ranked by usefulness **for a Windows 11 Paint user landing on macOS** — i.e. what they'll immediately reach for or notice missing. Both columns are 0–10 where **higher is better**: **Useful** = value to that user; **Ease** = how easy to implement (10 = trivial, low = hard).
+The committed feature set. The rendering rule comes first because it shapes several tools.
 
-The objective *raises the v1 bar*: modern Paint always shows undo/redo buttons and a zoom slider, and Mac users expect dark mode. So three things that would be "later" in a classic clone — **undo/redo, zoom, dark mode** — are table stakes here. Budget for them up front even though undo (Ease 4) and zoom (Ease 5) aren't trivial.
+### Rendering rule — aliased vs anti-aliased
 
-### Tier 1 — v1 (the modern-Paint baseline)
+The bucket fills by exact color match, so any anti-aliased edge leaves a one-pixel unfilled halo when filled. Therefore:
 
-| Feature | Useful | Ease | Notes |
-|---|:--:|:--:|---|
-| Top toolbar + tool selection | 10 | 8 | The structure that says "this is Paint." |
-| Pencil | 10 | 8 | Line from last point to current so fast strokes don't gap. |
-| Undo / redo | 10 | 4 | Snapshot `History`; wire ⌘Z/⇧⌘Z + toolbar buttons. Table stakes. |
-| Save / Open (PNG) | 10 | 6 | Tauri dialog + `toBlob`; Open loads onto canvas. |
-| Eraser | 9 | 8 | Paints Color 2 (classic Paint behavior). |
-| Brush + size slider | 9 | 7 | Variable-width round stroke. |
-| Line | 9 | 7 | Overlay preview, commit on release. |
-| Flood fill (bucket) | 9 | 4 | Queue/scanline fill over one `ImageData` pass, with tolerance. |
-| Zoom (slider + %) | 9 | 5 | Signature modern element; status bar looks broken without it. Coord-mapping bug magnet. |
-| Rectangle | 8 | 7 | Fill/outline modes. |
-| Ellipse | 8 | 7 | Same pattern as rectangle. |
-| Color palette + Color 1/2 + custom | 8 | 8 | Native color panel for custom. |
-| Dark mode | 8 | 7 | Mac expectation; Win11 Paint has it too, so it's on-brand. |
-| Eyedropper | 7 | 8 | Read one pixel via `getImageData`. |
-| Status bar (coords, dimensions) | 6 | 8 | Cheap, expected. |
+- **The pencil and every shape render hard-edged (aliased)** — a shape outline meets a flood fill with no gap. This is classic-Paint rendering, chosen deliberately for fill fidelity.
+- **The brush is the anti-aliased counterpart** to the pencil — the same stroke with smooth edges, for freehand work not meant to be flood-filled.
 
-### Tier 2 — next (expected soon after)
+### Tools & features
 
-| Feature | Useful | Ease | Notes |
-|---|:--:|:--:|---|
-| Rectangular selection → move / cut / copy / paste | 9 | 3 | Prominent "Select"; introduces selection layer + compositing. |
-| Text | 8 | 3 | Floating input over the canvas, rasterize on commit. |
-| Crop to selection | 7 | 5 | Prominent Crop button in Win11 Paint; depends on selection. |
-| Resize / rotate / flip | 7 | 6 | "Resize" dialog + rotate 90/180 + flip H/V. |
-| System clipboard (image in/out) | 6 | 4 | clipboard-manager plugin; internal clipboard first. |
+- **Selection** — rectangular marquee and free-form (lasso).
+- **Colors** — MS Paint palette, plus continuous / RGB / hex (`#000`) custom colors via the native macOS color panel. Left-click = Color 1, right-click = Color 2.
+- **Shapes** — line, rectangle, circle, rounded rectangle, polygon, curve. Hard-edged. Fixed widths: 1 / 3 / 5 / 8 px (not continuous).
+- **Pencil** — hard-edged freehand with a continuous width slider.
+- **Brush** — anti-aliased freehand (the pencil's smooth counterpart).
+- **Eraser · Eyedropper · Fill (bucket)** — standard Paint behavior; left / right paints Color 1 / Color 2.
+- **Text** — choose font, size, and bold / italic / underline / strikethrough; text rasterizes on commit and is not re-editable after placing.
+- **Save** — PNG (default) or JPEG.
+- **Image operations** — flip horizontal / vertical, rotate 90°, resize by percentage or pixels (aspect locked by default, unlock to stretch), crop to selection.
+- **Zoom** — keyboard shortcuts for in / out / reset.
+- **Keyboard shortcuts** — save, new, copy, paste (plus undo / redo, select-all, and single-key tool switching).
 
-### Tier 3 — polish / power
+### Explicitly out of scope
 
-| Feature | Useful | Ease | Notes |
-|---|:--:|:--:|---|
-| More shapes (rounded rect, polygon, curve) | 5 | 5 | Fills out the shape gallery. |
-| Brush shapes (round/square/calligraphy) | 5 | 7 | Vary brush stamp/lineCap. |
-| Free-form (lasso) select | 4 | 3 | Arbitrary path as a clip mask. |
-| More formats (JPG / BMP / GIF) | 5 | 6 | PNG/JPG native; BMP/GIF need a small lib. |
-| Airbrush / spray | 4 | 6 | Random points in a radius on a timer. |
-| Invert colors | 4 | 8 | Loop over `ImageData`. |
-| Gridlines / rulers | 3 | 7 | Overlay guides at high zoom. |
-
-### Tier 4 — modern extras (evaluate later) / skip
-
-| Feature | Useful | Ease | Notes |
-|---|:--:|:--:|---|
-| Layers | 6 | 2 | The one modern feature needing a real engine extension (ordered layer array, not just base/overlay). Big scope; defer. |
-| Transparency / remove background | 4 | 4 | Bg-color → alpha, or edge detection. |
-| Print | 3 | 5 | Webview print; awkward. |
-| AI (Cocreator / generative fill) | — | — | Out of scope. |
-| Set as desktop background / scan-acquire | 2 | — | Obsolete; skip. |
-
-### The 80/20
-
-All of Tier 1 gives a genuinely usable, unmistakably-Paint app that feels native on macOS. The Tier-1 items that look cheap but aren't — **undo/redo (Ease 4)** and **flood fill (Ease 4)**, plus **zoom (Ease 5)** — are where the real v1 effort goes; design the layer + history architecture around them from day one.
+Layers · transparency / alpha · AI features (Cocreator, generative fill) · stickers · advanced brushes (airbrush, calligraphy, watercolor, …) · shapes beyond the set above.
 
 ---
 
@@ -399,7 +370,7 @@ engine.snapshot('open');                 // seed history
 ## 9. Tricky bits & how we handle them
 
 - **Gaps in fast strokes** — pointer events are sparse; always draw a *line* from the last point to the current one, never isolated dots.
-- **Flood fill performance** — queue/scanline fill over one `getImageData`/`putImageData` pass; compare against a small color tolerance; never read pixels per-iteration.
+- **Flood fill** — scanline fill over one `getImageData`/`putImageData` pass; never read pixels per-iteration. The match is exact (zero tolerance), which is precisely why the pencil and shapes must render hard-edged: an anti-aliased border would leave a one-pixel unfilled halo. The brush is anti-aliased and isn't meant to be filled against.
 - **Preview without commit** — all in-progress shapes live on the overlay and are cleared each `onPointerMove`; the base is only touched on commit. This is what makes shape tools and undo trivial.
 - **Right-click** — disable the context menu on the canvas; map secondary button to Color 2.
 - **Pointer capture** — use `setPointerCapture` so a drag that leaves the canvas still finishes correctly.
@@ -411,13 +382,13 @@ engine.snapshot('open');                 // seed history
 
 - **M0 — Scaffold** · *Done.* Tauri + React + TS + Vite, Tailwind v4, macOS transparent-titlebar window, light/dark theme tokens, shell.
 - **M1 — Engine + first tool + history** · *Done.* `CanvasEngine` (base/overlay), commit flow, snapshot `History`, pointer plumbing, `coords.ts`, pencil, color model, palette, top toolbar. (Undo works from here.)
-- **M2 — Menu + shortcuts** · *To do.* Native macOS menu, New/clear; ⌘Z/⇧⌘Z and toolbar undo/redo already work outside the menu — the letter shortcuts and File/Edit/View menus remain.
+- **M2 — Menu + shortcuts** · *Done.* Native macOS menu bar (File/Edit/Image/View) with ⌘-accelerators, New; single-key tool shortcuts and Esc-cancel via a keydown handler.
 - **M3 — Shape & brush tools** · *Done.* Line, rectangle, ellipse (overlay preview); eraser; brush + size slider.
 - **M4 — Pixel tools** · *Done.* Flood fill, eyedropper.
-- **M5 — File I/O** · *To do.* Open + save/save-as PNG, dirty tracking, window title. (Dialog + fs permissions already granted.)
-- **M6 — Zoom** · *Partial.* Zoom slider + coordinate mapping + status bar (coords / dimensions / zoom %) done; fit-to-window, wheel/pinch zoom, and pan remain.
-- **M7 — Selection** · *To do.* Rectangular marquee, move, cut/copy/paste (internal clipboard first).
-- **M8 — Polish** · *Partial.* Text is a basic single-line editor; crop, resize/rotate/flip, more shapes/formats, and system clipboard remain.
+- **M5 — File I/O** · *Done.* Open + save/save-as PNG **and JPEG**, dirty tracking, window title. Bytes move through a Rust command so any user-chosen path works.
+- **M6 — Zoom** · *Partial.* Zoom slider, ⌘+/−/0, coordinate mapping, status bar done; fit-to-window, wheel/pinch zoom, and pan remain.
+- **M7 — Selection** · *Done.* Rectangular marquee with marching ants; move, delete, select-all, and copy/cut/paste through the system clipboard (internal fallback).
+- **M8 — Polish** · *Partial.* Multi-line styled text, crop, resize, flip H/V, and rotate 90° done; more shapes/formats, fit-to-window zoom, and layers remain.
 
 ### Keyboard shortcuts (via native menu)
 
