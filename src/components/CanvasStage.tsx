@@ -92,12 +92,23 @@ export function CanvasStage() {
     const o = engine.overlay;
     const lh = Math.round(ts.fontSize * LINE_HEIGHT);
     const pad = (lh - ts.fontSize) / 2; // center each line in its line box
+    const ruleW = Math.max(1, Math.round(ts.fontSize / 14)); // decoration thickness
     o.save();
     o.fillStyle = s.color1;
     o.textBaseline = "top";
     o.font = fontString(ts);
     t.value.split("\n").forEach((line, i) => {
-      o.fillText(line, t.cx, t.cy + i * lh + pad);
+      const top = t.cy + i * lh + pad;
+      o.fillText(line, t.cx, top);
+      // Canvas text has no underline/strike; draw them as crisp rules spanning
+      // the measured line width, under and through the glyphs.
+      if ((ts.underline || ts.strike) && line.length) {
+        const w = o.measureText(line).width;
+        if (ts.underline)
+          o.fillRect(t.cx, Math.round(top + ts.fontSize * 0.92), w, ruleW);
+        if (ts.strike)
+          o.fillRect(t.cx, Math.round(top + ts.fontSize * 0.52), w, ruleW);
+      }
     });
     o.restore();
     engine.commit("text");
@@ -272,6 +283,10 @@ export function CanvasStage() {
                 color: color1,
                 font: fontString(textStyle, zoom),
                 lineHeight: `${lineHeightPx}px`,
+                textDecorationLine:
+                  `${textStyle.underline ? "underline " : ""}${
+                    textStyle.strike ? "line-through" : ""
+                  }`.trim() || "none",
               }}
             />
           )}

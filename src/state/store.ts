@@ -65,6 +65,8 @@ export const usePaintStore = create<PaintState>((set) => ({
     fontSize: 24,
     bold: false,
     italic: false,
+    underline: false,
+    strike: false,
   },
   imageSize: { w: 800, h: 600 },
   view: { zoom: 1, panX: 0, panY: 0 },

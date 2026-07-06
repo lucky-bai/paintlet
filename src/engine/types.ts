@@ -36,4 +36,6 @@ export type TextStyle = {
   fontSize: number; // px, in logical image pixels
   bold: boolean;
   italic: boolean;
+  underline: boolean;
+  strike: boolean;
 };

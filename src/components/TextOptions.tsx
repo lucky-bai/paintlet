@@ -58,6 +58,20 @@ export function TextOptions() {
       >
         <span className="font-serif text-sm italic">I</span>
       </ToolButton>
+      <ToolButton
+        title="Underline"
+        active={style.underline}
+        onClick={() => set({ underline: !style.underline })}
+      >
+        <span className="text-sm underline">U</span>
+      </ToolButton>
+      <ToolButton
+        title="Strikethrough"
+        active={style.strike}
+        onClick={() => set({ strike: !style.strike })}
+      >
+        <span className="text-sm line-through">S</span>
+      </ToolButton>
     </div>
   );
 }
