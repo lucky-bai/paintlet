@@ -134,13 +134,28 @@ export class CanvasEngine {
   }
 
   // The heartbeat: fold the overlay preview into the base, clear it, snapshot.
-  // Every freehand/shape/text action ends here.
-  commit(_label: string): void {
+  // Every freehand/shape/text action ends here. When `crisp` is set, the
+  // overlay's anti-aliased edges are hardened first (see hardenOverlayAlpha) so
+  // the result flood-fills cleanly — the pencil and every shape pass crisp.
+  commit(_label: string, crisp = false): void {
+    if (crisp) this.hardenOverlayAlpha();
     this.base.drawImage(this.overlayCanvas, 0, 0);
     this.clearOverlay();
     this.history.push(this.readBase());
     this.dirty = true;
     this.emit();
+  }
+
+  // Snap the overlay's alpha channel to 0 or 255 at a 50%-coverage cutoff,
+  // turning anti-aliased edges into hard ones. The overlay holds a single
+  // stroke color over transparency, so its RGB is already the stroke color
+  // wherever it was drawn — only the coverage (alpha) needs hardening. This is
+  // what lets the exact-match bucket reach a shape's border with no 1px halo.
+  private hardenOverlayAlpha(cutoff = 128): void {
+    const img = this.overlay.getImageData(0, 0, this.width, this.height);
+    const d = img.data;
+    for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= cutoff ? 255 : 0;
+    this.overlay.putImageData(img, 0, 0);
   }
 
   // Record the current base as a history step without an overlay composite

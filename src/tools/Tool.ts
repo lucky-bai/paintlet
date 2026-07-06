@@ -13,7 +13,7 @@ export interface ToolContext {
   color2: string; // background (secondary button)
   size: number; // brush/stroke width in logical px
   clearPreview(): void; // wipe the overlay
-  commit(label: string): void; // overlay → base + push history
+  commit(label: string, crisp?: boolean): void; // overlay → base + push history; crisp hardens AA edges
   setColor1(c: string): void; // write foreground back (eyedropper)
   setColor2(c: string): void; // write background back (eyedropper)
 }

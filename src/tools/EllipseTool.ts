@@ -25,7 +25,7 @@ export class EllipseTool implements Tool {
     if (!this.start) return;
     this.draw(p, ctx);
     this.start = null;
-    ctx.commit("ellipse");
+    ctx.commit("ellipse", true);
   }
 
   onDeactivate(ctx: ToolContext): void {

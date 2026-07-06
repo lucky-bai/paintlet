@@ -2,10 +2,11 @@ import type { Point } from "../engine/types";
 import { constrainSquare, normalizeRect } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
-// Rectangle — outline in the stroke color, previewed on the overlay. Hold Shift
-// for a square. (Fill modes come later; MVP is outline-only.)
-export class RectangleTool implements Tool {
-  id = "rectangle" as const;
+// Rounded rectangle — outline with rounded corners, previewed on the overlay.
+// Hold Shift for a square. Hard-edged like the other shapes (commits crisp), so
+// a flood fill of the interior reaches the border with no anti-aliased halo.
+export class RoundedRectangleTool implements Tool {
+  id = "roundedRectangle" as const;
   cursor = "crosshair";
 
   private start: Point | null = null;
@@ -25,7 +26,7 @@ export class RectangleTool implements Tool {
     if (!this.start) return;
     this.draw(p, ctx);
     this.start = null;
-    ctx.commit("rectangle", true);
+    ctx.commit("rounded rectangle", true);
   }
 
   onDeactivate(ctx: ToolContext): void {
@@ -39,11 +40,22 @@ export class RectangleTool implements Tool {
     if (!this.start) return;
     const end = p.shiftKey ? constrainSquare(this.start, p.point) : p.point;
     const { x, y, w, h } = normalizeRect(this.start, end);
+    // Corner radius scales with the smaller side, capped so large rectangles
+    // don't turn into a stadium shape.
+    const r = Math.min(Math.min(w, h) / 2, 24);
     ctx.clearPreview();
     const o = ctx.overlay;
     o.strokeStyle = this.color;
     o.lineWidth = ctx.size;
-    o.lineJoin = "miter";
-    o.strokeRect(x, y, w, h);
+    o.lineJoin = "round";
+    // arcTo rounds each corner; widely supported in the webview.
+    o.beginPath();
+    o.moveTo(x + r, y);
+    o.arcTo(x + w, y, x + w, y + h, r);
+    o.arcTo(x + w, y + h, x, y + h, r);
+    o.arcTo(x, y + h, x, y, r);
+    o.arcTo(x, y, x + w, y, r);
+    o.closePath();
+    o.stroke();
   }
 }

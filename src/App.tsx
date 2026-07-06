@@ -24,6 +24,7 @@ const TOOL_KEYS: Record<string, ToolId> = {
   i: "eyedropper",
   l: "line",
   r: "rectangle",
+  u: "roundedRectangle",
   o: "ellipse",
 };
 

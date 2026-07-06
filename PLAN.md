@@ -14,20 +14,20 @@ Where the app stands today, grouped by state.
 
 ### Working
 
-- **Freehand:** pencil, brush, eraser. Left button paints Color 1, right button Color 2; the eraser always paints Color 2 (classic Paint). Continuous width slider (1–64 px).
-- **Shapes:** line, rectangle (outline), ellipse / circle (outline). Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-drag.
+- **Freehand:** pencil (hard-edged), brush (anti-aliased), eraser. Left button paints Color 1, right button Color 2; the eraser always paints Color 2 (classic Paint). Continuous width slider (1–64 px).
+- **Shapes:** line, rectangle, rounded rectangle, ellipse / circle — hard-edged (aliased) outlines, so a flood fill of the interior reaches the border with no halo. Fixed 1 / 3 / 5 / 8 px widths. Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-drag.
 - **Flood fill** (bucket) — exact-match scanline fill in a single pass.
 - **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2).
 - **Text** — multi-line editor with font family, size, and bold / italic / underline / strikethrough; typed in Color 1; rasterized on commit and not re-editable afterward.
 - **Selection** — rectangular marquee (**Shift** = square) with marching ants; drag to move (leaves a background-color hole); **Delete** clears it; **Select All** (⌘A).
 - **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
 - **Save / Open** — native dialogs, **PNG (default) and JPEG**; window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
-- **Image ops** — Resize (pixel dimensions, aspect-locked by default, unlock to stretch, smooth vs nearest resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90°. All undoable across the size change.
+- **Image ops** — Resize (by pixels or percentage, aspect-locked by default, unlock to stretch, smooth vs nearest resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90°. All undoable across the size change.
 - **Native macOS menu bar** — File / Edit / Image / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All.
 - **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
 - **Colors** — MS Paint palette grid, overlapping Color 1 / Color 2 swatches, swap, and the native macOS color panel for continuous / RGB / hex (`#000`) custom colors.
 - **Zoom** — shortcuts for in / out / reset (⌘+ / ⌘− / ⌘0), plus a status-bar slider + %, 0.25×–8×, crisp `pixelated` scaling.
-- **Tool shortcuts** — `S P B F T E I L R O` select the tools; `Esc` cancels the current action / deselects.
+- **Tool shortcuts** — `S P B F T E I L R U O` select the tools; `Esc` cancels the current action / deselects.
 - **Status bar** — live cursor coordinates and image dimensions.
 - **Theme** — light / dark following the macOS appearance, switching live.
 - **Window & canvas** — native transparent title bar (traffic lights) with a draggable strip and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
@@ -35,11 +35,8 @@ Where the app stands today, grouped by state.
 
 ### Not yet matching target scope
 
-- **Aliased shapes & pencil** — shapes and the pencil currently render anti-aliased (canvas path stroking). The bucket fills by exact color match, so an anti-aliased outline leaves a one-pixel unfilled halo when filled. Target: hard-edged (aliased) rasterization for the pencil and every shape so fills reach the border. The brush stays anti-aliased.
-- **Discrete shape widths** — shapes share the continuous 1–64 px slider; target is a fixed 1 / 3 / 5 / 8 px selector for shapes, with the continuous slider reserved for pencil / brush.
-- **More shapes** — rounded rectangle, polygon, and curve are not built (line, rectangle, ellipse / circle are).
+- **More shapes** — polygon and curve are not built (line, rectangle, rounded rectangle, ellipse / circle are). Both need multi-click / multi-phase interactions rather than a single drag.
 - **Free-form (lasso) selection** — only the rectangular marquee exists.
-- **Resize by percentage** — the dialog takes pixel dimensions only; target adds a % mode alongside pixels.
 
 ### Out of scope (won't build)
 

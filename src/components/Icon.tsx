@@ -14,6 +14,7 @@ export type IconName =
   | "eyedropper"
   | "line"
   | "rectangle"
+  | "roundedRectangle"
   | "ellipse"
   | "select"
   | "swap";
@@ -75,6 +76,7 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   line: <path d="M5 19 19 5" />,
   rectangle: <rect x="3" y="4" width="18" height="16" rx="1.5" />,
+  roundedRectangle: <rect x="3" y="4" width="18" height="16" rx="5.5" />,
   ellipse: <circle cx="12" cy="12" r="9" />,
   // Marquee: a dashed rectangle — the classic "select" cue.
   select: (

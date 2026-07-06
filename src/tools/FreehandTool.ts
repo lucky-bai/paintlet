@@ -13,6 +13,8 @@ export abstract class FreehandTool implements Tool {
   abstract id: ToolId;
   abstract cursor: string;
   protected lineCap: CanvasLineCap = "round";
+  // Harden anti-aliased edges on commit (pencil = true; brush/eraser = false).
+  protected crisp = false;
 
   // Which color this stroke paints, given the button that started it.
   protected abstract colorFor(p: PointerInfo, ctx: ToolContext): string;
@@ -39,7 +41,7 @@ export abstract class FreehandTool implements Tool {
     if (!this.drawing) return;
     this.drawing = false;
     this.last = null;
-    ctx.commit(this.id);
+    ctx.commit(this.id, this.crisp);
   }
 
   // Discard an in-progress stroke without committing (tool switch / Esc).

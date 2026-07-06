@@ -18,6 +18,7 @@ export type ToolId =
   | "line"
   | "rectangle"
   | "ellipse"
+  | "roundedRectangle"
   | "fill"
   | "eyedropper"
   | "select"

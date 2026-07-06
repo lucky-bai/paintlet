@@ -6,6 +6,7 @@ import { EraserTool } from "./EraserTool";
 import { LineTool } from "./LineTool";
 import { RectangleTool } from "./RectangleTool";
 import { EllipseTool } from "./EllipseTool";
+import { RoundedRectangleTool } from "./RoundedRectangleTool";
 import { FillTool } from "./FillTool";
 import { EyedropperTool } from "./EyedropperTool";
 import { SelectTool } from "./SelectTool";
@@ -20,6 +21,7 @@ const registry: Partial<Record<ToolId, Tool>> = {
   line: new LineTool(),
   rectangle: new RectangleTool(),
   ellipse: new EllipseTool(),
+  roundedRectangle: new RoundedRectangleTool(),
   fill: new FillTool(),
   eyedropper: new EyedropperTool(),
   select: new SelectTool(),
@@ -35,6 +37,19 @@ const ENABLED: ReadonlySet<ToolId> = new Set<ToolId>([
 
 export function getTool(id: ToolId): Tool | undefined {
   return registry[id];
+}
+
+// Shape tools use the discrete 1/3/5/8px size selector rather than the
+// continuous pencil/brush slider.
+const SHAPE_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
+  "line",
+  "rectangle",
+  "ellipse",
+  "roundedRectangle",
+]);
+
+export function isShapeTool(id: ToolId): boolean {
+  return SHAPE_TOOLS.has(id);
 }
 
 // Tools the toolbar should render as enabled (implemented).

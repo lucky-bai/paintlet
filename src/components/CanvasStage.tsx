@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { engine, usePaintStore } from "../state/store";
 import { screenToCanvas } from "../engine/coords";
-import { getTool } from "../tools/registry";
+import { getTool, isShapeTool } from "../tools/registry";
 import type { MouseButton, TextStyle } from "../engine/types";
 import type { PointerInfo, ToolContext } from "../tools/Tool";
 
@@ -57,15 +57,17 @@ export function CanvasStage() {
   // Snapshot the current config into a ToolContext for the active action.
   const makeCtx = (): ToolContext => {
     const s = usePaintStore.getState();
+    // Shapes use the discrete size selector; pencil/brush/eraser use the slider.
+    const size = isShapeTool(s.activeToolId) ? s.shapeSize : s.brushSize;
     return {
       base: engine.base,
       overlay: engine.overlay,
       engine,
       color1: s.color1,
       color2: s.color2,
-      size: s.brushSize,
+      size,
       clearPreview: () => engine.clearOverlay(),
-      commit: (label) => engine.commit(label),
+      commit: (label, crisp) => engine.commit(label, crisp),
       setColor1: (c) => s.setColor1(c),
       setColor2: (c) => s.setColor2(c),
     };

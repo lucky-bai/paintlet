@@ -25,7 +25,7 @@ export class LineTool implements Tool {
     if (!this.start) return;
     this.draw(p, ctx); // draw at the final position in case moves lagged
     this.start = null;
-    ctx.commit("line");
+    ctx.commit("line", true);
   }
 
   onDeactivate(ctx: ToolContext): void {
