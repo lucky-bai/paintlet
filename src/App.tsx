@@ -3,6 +3,8 @@ import { usePaintStore } from "./state/store";
 import type { ToolId } from "./engine/types";
 import { installAppMenu } from "./menu/appMenu";
 import * as A from "./actions";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { TitleBar } from "./components/TitleBar";
 import { Toolbar } from "./components/Toolbar";
 import { CanvasStage } from "./components/CanvasStage";
@@ -35,6 +37,26 @@ function App() {
     installAppMenu().catch((err) =>
       console.error("Failed to install app menu:", err),
     );
+  }, []);
+
+  // Guard the window close button: if the document has unsaved changes, ask
+  // before letting it close. Tauri's onCloseRequested runs our handler and then
+  // destroys the window unless we preventDefault, so a clean document (or a
+  // confirmed discard) closes normally and a cancel keeps the window open.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        if (!usePaintStore.getState().isDirty) return; // clean → just close
+        const discard = await ask("You have unsaved changes. Close without saving?", {
+          title: "VibePaint",
+          kind: "warning",
+        });
+        if (!discard) event.preventDefault();
+      })
+      .then((u) => (unlisten = u))
+      .catch((err) => console.error("Failed to install close guard:", err));
+    return () => unlisten?.();
   }, []);
 
   // Resolve theme → data-theme on <html>. "system" follows the OS and updates
