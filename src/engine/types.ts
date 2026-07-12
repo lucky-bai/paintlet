@@ -16,11 +16,15 @@ export type ToolId =
   | "brush"
   | "eraser"
   | "line"
+  | "curve"
   | "rectangle"
   | "ellipse"
+  | "roundedRectangle"
+  | "polygon"
   | "fill"
   | "eyedropper"
   | "select"
+  | "freeSelect"
   | "text";
 
 export type Theme = "system" | "light" | "dark";

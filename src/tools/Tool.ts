@@ -12,8 +12,9 @@ export interface ToolContext {
   color1: string; // foreground (primary button)
   color2: string; // background (secondary button)
   size: number; // brush/stroke width in logical px
+  zoom: number; // current view zoom (screen px per image px)
   clearPreview(): void; // wipe the overlay
-  commit(label: string): void; // overlay → base + push history
+  commit(label: string, crisp?: boolean): void; // overlay → base + push history; crisp hardens AA edges
   setColor1(c: string): void; // write foreground back (eyedropper)
   setColor2(c: string): void; // write background back (eyedropper)
 }
@@ -31,6 +32,10 @@ export interface Tool {
   onPointerDown(p: PointerInfo, ctx: ToolContext): void;
   onPointerMove(p: PointerInfo, ctx: ToolContext): void;
   onPointerUp(p: PointerInfo, ctx: ToolContext): void;
+
+  // Moves with no button held. Multi-phase tools (polygon) preview the pending
+  // segment here; single-drag tools simply omit it.
+  onPointerHover?(p: PointerInfo, ctx: ToolContext): void;
 
   onActivate?(ctx: ToolContext): void;
   onDeactivate?(ctx: ToolContext): void; // cleanup on tool switch

@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { engine, usePaintStore } from "../state/store";
+import { stageHooks } from "../state/stageHooks";
+import { viewport } from "../state/viewport";
 import { screenToCanvas } from "../engine/coords";
-import { getTool } from "../tools/registry";
-import type { MouseButton, TextStyle } from "../engine/types";
+import { getTool, isShapeTool } from "../tools/registry";
+import { clampZoom } from "../lib/zoom";
+import type { MouseButton, TextStyle, ToolId } from "../engine/types";
 import type { PointerInfo, ToolContext } from "../tools/Tool";
 
 // Multi-line spacing factor for the text tool (matches the editor and raster).
@@ -21,7 +24,44 @@ export function CanvasStage() {
   const baseRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const selectionRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const drawing = useRef(false);
+
+  // — panning (space-drag or middle-drag) —
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const spaceHeldRef = useRef(false); // handler-readable mirror of spaceHeld
+  const [panning, setPanning] = useState(false);
+  const pan = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    sl: number;
+    st: number;
+  } | null>(null);
+
+  // Zoom-at-cursor: the image point that must stay under this client position
+  // across the re-render that applies a new zoom.
+  const zoomAnchor = useRef<{
+    clientX: number;
+    clientY: number;
+    ix: number;
+    iy: number;
+  } | null>(null);
+
+  // — canvas drag-resize handles (right / bottom / corner of the paper) —
+  // Dragging shows a dashed preview of the target size; the canvas is cropped
+  // or extended (white fill, anchored top-left) on release — as in Win11 Paint.
+  const [resizePreview, setResizePreview] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
+  const resizeDrag = useRef<{
+    axis: "x" | "y" | "xy";
+    startW: number;
+    startH: number;
+    sx: number;
+    sy: number;
+  } | null>(null);
 
   const { w, h } = usePaintStore((s) => s.imageSize);
   const zoom = usePaintStore((s) => s.view.zoom);
@@ -57,15 +97,18 @@ export function CanvasStage() {
   // Snapshot the current config into a ToolContext for the active action.
   const makeCtx = (): ToolContext => {
     const s = usePaintStore.getState();
+    // Shapes use the discrete size selector; pencil/brush/eraser use the slider.
+    const size = isShapeTool(s.activeToolId) ? s.shapeSize : s.brushSize;
     return {
       base: engine.base,
       overlay: engine.overlay,
       engine,
       color1: s.color1,
       color2: s.color2,
-      size: s.brushSize,
+      size,
+      zoom: s.view.zoom,
       clearPreview: () => engine.clearOverlay(),
-      commit: (label) => engine.commit(label),
+      commit: (label, crisp) => engine.commit(label, crisp),
       setColor1: (c) => s.setColor1(c),
       setColor2: (c) => s.setColor2(c),
     };
@@ -114,16 +157,44 @@ export function CanvasStage() {
     engine.commit("text");
   };
 
+  // Expose the stage's private state to the action layer: committing a pending
+  // text edit (before Save/New/Open/close) and cancelling an in-progress tool
+  // session (before Undo/Redo). Selection tools are excluded from the latter —
+  // their onDeactivate would bake the float and push a history step of its own.
+  useEffect(() => {
+    stageHooks.flushTextEdit = () => {
+      if (textEditRef.current) {
+        commitText(textEditRef.current);
+        setTextEdit(null);
+      }
+    };
+    stageHooks.cancelToolSession = () => {
+      const id = usePaintStore.getState().activeToolId;
+      if (id === "select" || id === "freeSelect" || id === "text") return;
+      drawing.current = false;
+      getTool(id)?.onDeactivate?.(makeCtx());
+    };
+    return () => {
+      stageHooks.flushTextEdit = null;
+      stageHooks.cancelToolSession = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Commit the previous tool's pending state when the active tool changes:
   // freehand/shape cleanup, selection bake-down, and pending-text rasterization.
+  // Exception (matches Win11 Paint): hopping between the marquee and the lasso
+  // keeps the current selection — either tool can move what the other selected,
+  // so skip the deactivate that would bake it down.
   const prevToolRef = useRef(activeToolId);
   useEffect(() => {
     const prev = prevToolRef.current;
     if (prev !== activeToolId) {
+      const isSelect = (id: ToolId) => id === "select" || id === "freeSelect";
       if (prev === "text") {
         if (textEditRef.current) commitText(textEditRef.current);
         setTextEdit(null);
-      } else {
+      } else if (!(isSelect(prev) && isSelect(activeToolId))) {
         getTool(prev)?.onDeactivate?.(makeCtx());
       }
       prevToolRef.current = activeToolId;
@@ -150,16 +221,204 @@ export function CanvasStage() {
     return () => cancelAnimationFrame(raf);
   }, [hasSelection]);
 
-  // Esc cancels an in-progress stroke/shape, or deselects a finished selection.
+  // Zoom gestures on the work area: ⌘/Ctrl-wheel (and Chromium's synthesized
+  // ctrl-wheel for pinches) plus WebKit's native gesture events, which is what
+  // the Tauri webview emits for a trackpad pinch. Both funnel through zoomAt so
+  // the pixel under the pointer stays put. Registered manually because React
+  // wheel listeners are passive (preventDefault would be ignored) and gesture
+  // events have no React equivalent.
+  useEffect(() => {
+    const el = containerRef.current!;
+    viewport.el = el;
+
+    const zoomAt = (clientX: number, clientY: number, next: number) => {
+      const overlay = overlayRef.current;
+      if (!overlay) return;
+      const cur = usePaintStore.getState().view.zoom;
+      const z = clampZoom(next);
+      if (z === cur) return;
+      const rect = overlay.getBoundingClientRect();
+      zoomAnchor.current = {
+        clientX,
+        clientY,
+        ix: (clientX - rect.left) / cur,
+        iy: (clientY - rect.top) / cur,
+      };
+      usePaintStore.getState().setZoom(z);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return; // plain scroll keeps scrolling
+      e.preventDefault();
+      const cur = usePaintStore.getState().view.zoom;
+      zoomAt(e.clientX, e.clientY, cur * Math.exp(-e.deltaY * 0.01));
+    };
+
+    // GestureEvent is WebKit-only and untyped; e.scale is relative to the
+    // gesture's start, so anchor the factor to the zoom captured at start.
+    let gestureStartZoom = 1;
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+      gestureStartZoom = usePaintStore.getState().view.zoom;
+    };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const g = e as Event & { scale: number; clientX: number; clientY: number };
+      zoomAt(g.clientX, g.clientY, gestureStartZoom * g.scale);
+    };
+    const onGestureEnd = (e: Event) => e.preventDefault();
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("gesturestart", onGestureStart);
+    el.addEventListener("gesturechange", onGestureChange);
+    el.addEventListener("gestureend", onGestureEnd);
+    return () => {
+      viewport.el = null;
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("gesturestart", onGestureStart);
+      el.removeEventListener("gesturechange", onGestureChange);
+      el.removeEventListener("gestureend", onGestureEnd);
+    };
+  }, []);
+
+  // After a zoom-at-cursor renders, scroll so the anchored image point is back
+  // under the pointer. Layout effect: must run before the frame paints.
+  useLayoutEffect(() => {
+    const a = zoomAnchor.current;
+    if (!a) return;
+    zoomAnchor.current = null;
+    const el = containerRef.current;
+    const overlay = overlayRef.current;
+    if (!el || !overlay) return;
+    const rect = overlay.getBoundingClientRect();
+    el.scrollLeft += rect.left + a.ix * zoom - a.clientX;
+    el.scrollTop += rect.top + a.iy * zoom - a.clientY;
+  }, [zoom]);
+
+  // Track the spacebar for space-drag panning (ignored while typing in a
+  // field). Window blur releases it so a ⌘Tab away can't wedge pan mode on.
+  useEffect(() => {
+    const setHeld = (held: boolean) => {
+      spaceHeldRef.current = held;
+      setSpaceHeld(held);
+    };
+    const onDown = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const editable =
+        !!el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable);
+      if (e.code !== "Space" || editable) return;
+      e.preventDefault(); // space would otherwise scroll the work area
+      setHeld(true);
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") setHeld(false);
+    };
+    const onBlur = () => setHeld(false);
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
+  // Pan gestures, in the capture phase so they win over the canvas tools:
+  // space-drag or middle-button drag scrolls the work area directly.
+  const onPanPointerDown = (e: React.PointerEvent) => {
+    if (!spaceHeldRef.current && e.button !== 1) return;
+    const el = containerRef.current!;
+    e.preventDefault();
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    pan.current = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      sl: el.scrollLeft,
+      st: el.scrollTop,
+    };
+    setPanning(true);
+  };
+  const onPanPointerMove = (e: React.PointerEvent) => {
+    const p = pan.current;
+    if (!p || e.pointerId !== p.id) return;
+    e.stopPropagation();
+    const el = containerRef.current!;
+    el.scrollLeft = p.sl - (e.clientX - p.x);
+    el.scrollTop = p.st - (e.clientY - p.y);
+  };
+  const onPanPointerEnd = (e: React.PointerEvent) => {
+    if (!pan.current || e.pointerId !== pan.current.id) return;
+    e.stopPropagation();
+    pan.current = null;
+    setPanning(false);
+    try {
+      containerRef.current!.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture may already be released */
+    }
+  };
+
+  // Canvas-resize handle drag. Pointer capture keeps the gesture alive when
+  // the cursor leaves the little handle; sizes are computed from the total
+  // client-pixel delta divided by zoom, clamped to at least 1×1.
+  const resizeTarget = (e: React.PointerEvent) => {
+    const d = resizeDrag.current!;
+    const z = usePaintStore.getState().view.zoom;
+    return {
+      w:
+        d.axis === "y"
+          ? d.startW
+          : Math.max(1, Math.round(d.startW + (e.clientX - d.sx) / z)),
+      h:
+        d.axis === "x"
+          ? d.startH
+          : Math.max(1, Math.round(d.startH + (e.clientY - d.sy) / z)),
+    };
+  };
+  const onHandleDown = (axis: "x" | "y" | "xy") => (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    resizeDrag.current = { axis, startW: w, startH: h, sx: e.clientX, sy: e.clientY };
+    setResizePreview({ w, h });
+  };
+  const onHandleMove = (e: React.PointerEvent) => {
+    if (!resizeDrag.current) return;
+    e.stopPropagation();
+    setResizePreview(resizeTarget(e));
+  };
+  const onHandleUp = (e: React.PointerEvent) => {
+    const d = resizeDrag.current;
+    if (!d) return;
+    e.stopPropagation();
+    const t = resizeTarget(e);
+    resizeDrag.current = null;
+    setResizePreview(null);
+    if (t.w !== d.startW || t.h !== d.startH) engine.setCanvasSize(t.w, t.h);
+  };
+
+  // Esc cancels an in-progress stroke/shape (including a multi-click polygon
+  // or curve between gestures, via the tool's own onKeyDown), or deselects a
+  // finished selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      const activeId = usePaintStore.getState().activeToolId;
       if (drawing.current) {
         drawing.current = false;
-        getTool(usePaintStore.getState().activeToolId)?.onDeactivate?.(makeCtx());
+        getTool(activeId)?.onDeactivate?.(makeCtx());
         engine.clearOverlay();
-      } else if (
-        usePaintStore.getState().activeToolId === "select" &&
+        return;
+      }
+      getTool(activeId)?.onKeyDown?.(e, makeCtx());
+      if (
+        (activeId === "select" || activeId === "freeSelect") &&
         engine.hasSelectionOrFloat()
       ) {
         engine.deselect();
@@ -181,8 +440,14 @@ export function CanvasStage() {
   });
 
   const onPointerDown = (e: React.PointerEvent) => {
+    // Middle button and space-drag belong to panning, never to tools.
+    if (e.button === 1 || spaceHeldRef.current) return;
     // Text tool: place/reposition the floating editor instead of stroking.
     if (activeToolId === "text") {
+      // Cancel the browser's post-mousedown focus default, which would blur
+      // the freshly mounted textarea back to <body> — where the next
+      // keystrokes would hit the single-key tool shortcuts instead.
+      e.preventDefault();
       const pt = screenToCanvas(e.clientX, e.clientY, overlayRef.current!);
       if (textEdit) commitText(textEdit); // commit any existing edit first
       setTextEdit({ cx: pt.x, cy: pt.y, value: "" });
@@ -199,8 +464,13 @@ export function CanvasStage() {
     usePaintStore
       .getState()
       .setCursorPos(screenToCanvas(e.clientX, e.clientY, overlayRef.current!));
-    if (!drawing.current) return;
-    getTool(activeToolId)?.onPointerMove(infoOf(e), makeCtx());
+    const tool = getTool(activeToolId);
+    if (!drawing.current) {
+      // Multi-click tools (polygon) rubber-band between clicks.
+      tool?.onPointerHover?.(infoOf(e), makeCtx());
+      return;
+    }
+    tool?.onPointerMove(infoOf(e), makeCtx());
   };
 
   const endStroke = (e: React.PointerEvent) => {
@@ -212,19 +482,33 @@ export function CanvasStage() {
     } catch {
       /* capture may already be released */
     }
+    // Classic Paint: after the eyedropper picks, return to the previous tool.
+    if (activeToolId === "eyedropper") {
+      const s = usePaintStore.getState();
+      s.setTool(s.previousToolId === "eyedropper" ? "pencil" : s.previousToolId);
+    }
   };
 
-  const cursor =
-    getTool(activeToolId)?.cursor ??
-    (activeToolId === "text" ? "text" : "default");
+  const cursor = panning
+    ? "grabbing"
+    : spaceHeld
+      ? "grab"
+      : (getTool(activeToolId)?.cursor ??
+        (activeToolId === "text" ? "text" : "default"));
   const cssSize = { width: w * zoom, height: h * zoom };
   const box = textEdit ? measureBox(textEdit.value, textStyle) : null;
   const lineHeightPx = Math.round(textStyle.fontSize * LINE_HEIGHT) * zoom;
 
   return (
     <div
+      ref={containerRef}
       className="relative flex-1 overflow-auto bg-work"
+      style={{ cursor: panning ? "grabbing" : spaceHeld ? "grab" : undefined }}
       onContextMenu={(e) => e.preventDefault()}
+      onPointerDownCapture={onPanPointerDown}
+      onPointerMoveCapture={onPanPointerMove}
+      onPointerUpCapture={onPanPointerEnd}
+      onPointerCancelCapture={onPanPointerEnd}
     >
       <div className="flex min-h-full min-w-full items-center justify-center p-10">
         {/* The "paper": drop shadow + hairline ring around the document. */}
@@ -254,12 +538,56 @@ export function CanvasStage() {
             style={{ ...cssSize, imageRendering: "pixelated" }}
           />
 
+          {/* Canvas resize handles (right / bottom / corner), as in Win11
+              Paint: drag to crop or extend the canvas. */}
+          {(
+            [
+              ["x", { right: -6, top: "50%", marginTop: -5 }, "ew-resize"],
+              ["y", { bottom: -6, left: "50%", marginLeft: -5 }, "ns-resize"],
+              ["xy", { right: -6, bottom: -6 }, "nwse-resize"],
+            ] as const
+          ).map(([axis, pos, cur]) => (
+            <div
+              key={axis}
+              title="Drag to resize the canvas"
+              className="absolute z-10 h-2.5 w-2.5 rounded-[2px] border border-neutral-400 bg-white shadow-sm"
+              style={{ ...pos, cursor: cur }}
+              onPointerDown={onHandleDown(axis)}
+              onPointerMove={onHandleMove}
+              onPointerUp={onHandleUp}
+              onPointerCancel={onHandleUp}
+            />
+          ))}
+
+          {/* Dashed preview + size badge while a resize handle drags. */}
+          {resizePreview && (
+            <>
+              <div
+                className="pointer-events-none absolute left-0 top-0 z-10 border border-dashed border-neutral-500"
+                style={{
+                  width: resizePreview.w * zoom,
+                  height: resizePreview.h * zoom,
+                }}
+              />
+              <div
+                className="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-surface px-1.5 py-0.5 text-xs text-ink shadow"
+                style={{
+                  left: resizePreview.w * zoom + 8,
+                  top: resizePreview.h * zoom + 8,
+                }}
+              >
+                {resizePreview.w} × {resizePreview.h}px
+              </div>
+            </>
+          )}
+
           {/* Floating multi-line text editor — rasterized onto the canvas when
               a new action starts or the tool changes. */}
           {textEdit && box && (
             <textarea
               key={`${textEdit.cx},${textEdit.cy}`}
               autoFocus
+              ref={(el) => el?.focus()}
               value={textEdit.value}
               spellCheck={false}
               wrap="off"

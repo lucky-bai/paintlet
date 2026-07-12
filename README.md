@@ -6,35 +6,20 @@ Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The na
 
 ## Features
 
-**Working**
-
-- Freehand tools: **pencil**, **brush**, **eraser** (left button = Color 1, right = Color 2).
-- Shapes: **line**, **rectangle**, **ellipse** with live preview; **Shift** constrains to 45° / square / circle, **Esc** cancels mid-drag.
-- **Flood fill** (bucket) and **eyedropper** (color picker).
-- **Text** — multi-line editor with font family, size, and bold / italic.
-- **Selection** — rectangular marquee with marching ants; drag to move, **Delete** to clear, **Select All** (⌘A).
-- **Copy / Cut / Paste** (⌘C / ⌘X / ⌘V) through the system clipboard; paste drops in a floating selection.
-- **Save / Open** as **PNG or JPEG** via native dialogs; the title bar tracks the file and unsaved changes.
-- **Image**: Resize (aspect-lock + resampling), Crop to selection, Flip H/V, Rotate 90° — all undoable.
-- **Native macOS menu bar** (File / Edit / Image / View) with ⌘-shortcuts, plus single-key tool shortcuts.
-- **Undo / redo** (⌘Z / ⇧⌘Z) backed by a dimension-aware snapshot history.
-- Color palette with Color 1 / Color 2 swatches and the native macOS color panel; size slider.
-- **Zoom** (0.25×–8×, ⌘+ / ⌘− / ⌘0) with crisp `pixelated` scaling, and a status bar with live cursor coordinates and image dimensions.
+- Freehand tools: **pencil** (hard-edged), **brush** (anti-aliased), **eraser** (hard, square) — left button paints Color 1, right button Color 2, continuous width slider.
+- Shapes: **line, curve, rectangle, rounded rectangle, ellipse, polygon** at fixed 1/3/5/8 px widths, pixel-grid aligned so a 1 px stroke is exactly 1 px. **Shift** constrains to 45°/square/circle, **Esc** cancels. The curve is Paint's three-gesture Bézier; the polygon is multi-click with a rubber-band preview.
+- **Flood fill** (bucket) and **eyedropper** — the pencil and shapes render hard-edged, so fills reach their borders with no anti-aliased halo; the eyedropper returns to the previous tool after picking.
+- **Text** — multi-line editor with font family, size, and bold/italic/underline/strikethrough; rasterized on commit. Pending text is committed (never dropped) by Save/New/Open/close.
+- **Selection** — rectangular marquee and **free-form lasso** with marching ants along the exact outline; drag to move (leaves a selection-shaped hole), **Delete** clears, ⌘A selects all, and the selection survives switching between the two select tools.
+- **Copy / Cut / Paste** (⌘C/⌘X/⌘V) through the system clipboard; paste drops in a floating selection and grows the canvas if needed.
+- **Save / Open** as **PNG or JPEG** via native dialogs; the title bar tracks the file and unsaved changes, and New/Open/close confirm before discarding them.
+- **Image ops** — resize by pixels or percent (aspect-lock, smooth/nearest resampling), crop to selection, flip H/V, rotate 90° right/left/180°, plus **drag handles on the canvas edge** to crop or extend it — all undoable.
+- **Zoom & pan** — 0.25×–8× with crisp `pixelated` scaling: ⌘+/⌘−/⌘0, **⌘9 fit to window**, pinch or ⌘-wheel zoom centered on the cursor, space-drag or middle-drag panning, and a status-bar slider.
+- **Undo / redo** (⌘Z/⇧⌘Z) backed by a dimension-aware snapshot history that spans resizes and crops.
+- **Native macOS menu bar** (File/Edit/Image/View) with ⌘-shortcuts, single-key tool shortcuts, per-tool cursors, MS Paint color palette + the native color panel, and a status bar with live coordinates, image and selection size.
 - **Light / dark** theme following the macOS appearance.
 
-**Partial**
-
-- **Text** — one style per box, committed on the next action; no reposition-by-drag or alignment.
-- **Zoom / navigation** — slider + shortcuts; no fit-to-window, wheel/pinch zoom, or dedicated pan.
-- Shapes are outline-only; the eraser paints an opaque background color.
-
-**Planned**
-
-- Free-form (lasso) selection and on-canvas resize handles.
-- Fit-to-window, wheel/pinch zoom, and pan.
-- Layers, more shapes / brush shapes / airbrush / invert, and BMP / GIF formats.
-
-See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
+Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
 
 ## Tech stack
 
@@ -45,13 +30,25 @@ See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
 
 ## Getting started
 
-**Prerequisites:** Node 18+, the Rust toolchain, and Xcode Command Line Tools.
+**Prerequisites:** Node 18+, pnpm, the Rust toolchain, and Xcode Command Line Tools.
 
 ```bash
-npm install
-npm run tauri dev      # run the desktop app in development
-npm run tauri build    # produce a macOS app bundle
+pnpm install
+pnpm dev            # run the desktop app in development
+pnpm tauri build    # produce a macOS app bundle
+pnpm dev:web        # frontend only, in a browser (native menus/dialogs disabled)
 ```
+
+## Tests
+
+```bash
+pnpm test           # Vitest unit tests (pure logic: fill, history, geometry)
+pnpm test:e2e       # headless-browser smoke test: boots the web build and
+                    # drives it with real pointer/keyboard input, asserting
+                    # by reading pixels back off the canvases
+```
+
+CI (GitHub Actions) runs build → unit tests → e2e on every pull request.
 
 ## Architecture in brief
 
@@ -59,7 +56,7 @@ Three stacked canvases drive everything:
 
 1. **Base** — the committed image, the source of truth, saved to disk.
 2. **Overlay** — transparent; live previews render here and clear constantly.
-3. **Selection** — the marching-ants marquee and any floating (moved/pasted) pixels, composited into the base on commit.
+3. **Selection** — the marching-ants marquee (rect or lasso outline) and any floating (moved/pasted) pixels, composited into the base on commit.
 
 Every action previews on the overlay, then on pointer-up composites into the base and pushes a history snapshot. Because everything ends as pixels, undo, selection, and text all reduce to the same commit mechanism. Tools implement one shared `Tool` interface, so adding a tool is a single file.
 
@@ -70,9 +67,11 @@ src/
 ├─ components/  # Toolbar, CanvasStage, ColorControls, StatusBar, dialogs, …
 ├─ io/          # file open/save + system clipboard
 ├─ menu/        # native macOS menu bar
-├─ state/       # Zustand store
+├─ state/       # Zustand store + stage hooks + viewport ref
+├─ lib/         # zoom bounds, SVG cursors, cx
 ├─ actions.ts   # shared commands for the menu + keyboard
 └─ styles/      # Tailwind entry + theme tokens
+tests/          # headless-browser e2e smoke (unit tests live in src/**/*.test.ts)
 src-tauri/      # Rust shell (file I/O commands), capabilities, config
 ```
 

@@ -1,3 +1,4 @@
+import { brushCursor } from "../lib/cursors";
 import { FreehandTool } from "./FreehandTool";
 import type { PointerInfo, ToolContext } from "./Tool";
 
@@ -5,7 +6,7 @@ import type { PointerInfo, ToolContext } from "./Tool";
 // slider gives it heft. Primary → Color 1, secondary → Color 2.
 export class BrushTool extends FreehandTool {
   id = "brush" as const;
-  cursor = "crosshair";
+  cursor = brushCursor;
   protected lineCap: CanvasLineCap = "round";
 
   protected colorFor(p: PointerInfo, ctx: ToolContext): string {

@@ -11,6 +11,7 @@ export type EngineChange = {
   width: number;
   height: number;
   hasSelection: boolean;
+  selectionSize: { w: number; h: number } | null; // for the status bar
 };
 
 // The imperative core. Owns the three stacked <canvas> contexts, the commit
@@ -37,6 +38,12 @@ export class CanvasEngine {
   // The committed marquee rect (logical image px), or null when nothing is
   // selected. When content is floating, this rect tracks the floating bounds.
   selection: Rect | null = null;
+  // Free-form (lasso) outline, stored RELATIVE to the selection rect's origin
+  // so a float drag translates it for free. Null → the selection is the plain
+  // rectangle. While the lasso is still being dragged the outline is open;
+  // finalizing closes it back to the start.
+  private selPoly: Point[] | null = null;
+  private selPolyClosed = false;
   // Lifted/pasted pixels that hover above the base until committed. Drawn on the
   // selection layer at (floatX, floatY); folded into the base on commit.
   private floatCanvas: HTMLCanvasElement | null = null;
@@ -70,7 +77,7 @@ export class CanvasEngine {
 
     this.applySize(width, height);
     this.fillBase("#ffffff");
-    this.selection = null;
+    this.setSelection(null);
     this.discardFloat();
     this.history.reset();
     this.history.push(this.readBase());
@@ -91,6 +98,9 @@ export class CanvasEngine {
       width: this.width,
       height: this.height,
       hasSelection: this.selection != null || this.floatCanvas != null,
+      selectionSize: this.selection
+        ? { w: this.selection.w, h: this.selection.h }
+        : null,
     });
   }
 
@@ -134,13 +144,28 @@ export class CanvasEngine {
   }
 
   // The heartbeat: fold the overlay preview into the base, clear it, snapshot.
-  // Every freehand/shape/text action ends here.
-  commit(_label: string): void {
+  // Every freehand/shape/text action ends here. When `crisp` is set, the
+  // overlay's anti-aliased edges are hardened first (see hardenOverlayAlpha) so
+  // the result flood-fills cleanly — the pencil and every shape pass crisp.
+  commit(_label: string, crisp = false): void {
+    if (crisp) this.hardenOverlayAlpha();
     this.base.drawImage(this.overlayCanvas, 0, 0);
     this.clearOverlay();
     this.history.push(this.readBase());
     this.dirty = true;
     this.emit();
+  }
+
+  // Snap the overlay's alpha channel to 0 or 255 at a 50%-coverage cutoff,
+  // turning anti-aliased edges into hard ones. The overlay holds a single
+  // stroke color over transparency, so its RGB is already the stroke color
+  // wherever it was drawn — only the coverage (alpha) needs hardening. This is
+  // what lets the exact-match bucket reach a shape's border with no 1px halo.
+  private hardenOverlayAlpha(cutoff = 128): void {
+    const img = this.overlay.getImageData(0, 0, this.width, this.height);
+    const d = img.data;
+    for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= cutoff ? 255 : 0;
+    this.overlay.putImageData(img, 0, 0);
   }
 
   // Record the current base as a history step without an overlay composite
@@ -171,7 +196,7 @@ export class CanvasEngine {
   // undo/redo can cross a resize/crop: resize the canvas to match, then paint.
   private applySnapshot(snap: ImageData): void {
     this.discardFloat();
-    this.selection = null;
+    this.setSelection(null);
     if (snap.width !== this.width || snap.height !== this.height) {
       this.applySize(snap.width, snap.height);
     }
@@ -200,7 +225,7 @@ export class CanvasEngine {
   // Fresh white document at the given size. Resets history and clears dirty.
   newDocument(width: number, height: number): void {
     this.discardFloat();
-    this.selection = null;
+    this.setSelection(null);
     this.applySize(width, height);
     this.fillBase("#ffffff");
     this.clearOverlay();
@@ -217,7 +242,7 @@ export class CanvasEngine {
     const w = bitmap.width;
     const h = bitmap.height;
     this.discardFloat();
-    this.selection = null;
+    this.setSelection(null);
     this.applySize(w, h);
     // A transparent PNG dropped onto a white paper reads as white, matching
     // Paint (which has no transparent canvas). Fill white, then draw.
@@ -231,6 +256,24 @@ export class CanvasEngine {
     this.emit();
   }
 
+  // Grow or crop the canvas to exact pixel dimensions, anchored top-left, with
+  // newly exposed area painted white — Paint's drag-handle resize. No scaling:
+  // that's resizeImage below.
+  setCanvasSize(width: number, height: number): void {
+    if (width === this.width && height === this.height) return;
+    this.stampFloatOnly();
+    const src = this.copyBase();
+    this.applySize(width, height);
+    this.fillBase("#ffffff");
+    this.base.drawImage(src, 0, 0);
+    this.clearOverlay();
+    this.setSelection(null);
+    this.clearSelectionLayer();
+    this.history.push(this.readBase());
+    this.dirty = true;
+    this.emit();
+  }
+
   // Scale the whole image to a new size (Image → Resize). `smooth` picks
   // bilinear resampling (photos) vs nearest-neighbor (pixel art).
   resizeImage(width: number, height: number, smooth = true): void {
@@ -241,7 +284,7 @@ export class CanvasEngine {
     this.base.drawImage(src, 0, 0, src.width, src.height, 0, 0, width, height);
     this.base.imageSmoothingEnabled = false;
     this.clearOverlay();
-    this.selection = null;
+    this.setSelection(null);
     this.clearSelectionLayer();
     this.history.push(this.readBase());
     this.dirty = true;
@@ -258,7 +301,7 @@ export class CanvasEngine {
     this.applySize(r.w, r.h);
     this.base.putImageData(region, 0, 0);
     this.clearOverlay();
-    this.selection = null;
+    this.setSelection(null);
     this.clearSelectionLayer();
     this.history.push(this.readBase());
     this.dirty = true;
@@ -291,6 +334,23 @@ export class CanvasEngine {
     });
   }
 
+  // Rotate 90° counter-clockwise; swaps width and height.
+  rotate270(): void {
+    this.transformInPlace(this.height, this.width, (ctx, src) => {
+      ctx.translate(0, this.height); // new height == old width
+      ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(src, 0, 0);
+    });
+  }
+
+  rotate180(): void {
+    this.transformInPlace(this.width, this.height, (ctx, src) => {
+      ctx.translate(this.width, this.height);
+      ctx.rotate(Math.PI);
+      ctx.drawImage(src, 0, 0);
+    });
+  }
+
   // Shared plumbing for the flip/rotate transforms: snapshot the current base,
   // resize to the target dimensions, and let `draw` paint the transformed copy.
   private transformInPlace(
@@ -305,7 +365,7 @@ export class CanvasEngine {
     draw(this.base, src);
     this.base.restore();
     this.clearOverlay();
-    this.selection = null;
+    this.setSelection(null);
     this.clearSelectionLayer();
     this.history.push(this.readBase());
     this.dirty = true;
@@ -320,52 +380,126 @@ export class CanvasEngine {
     return this.selection != null || this.floatCanvas != null;
   }
 
+  // Every selection is rectangular unless a lasso setter re-attaches a poly, so
+  // all writes to `selection` funnel through here to keep the two in sync.
+  private setSelection(r: Rect | null): void {
+    this.selection = r;
+    this.selPoly = null;
+    this.selPolyClosed = false;
+  }
+
+  // The lasso outline as a Path2D positioned at the current selection origin
+  // (it follows a float drag automatically). Null for rectangular selections.
+  // Clip/fill callers force closure; the ants renderer keeps an in-progress
+  // drag's outline open.
+  private selPath(forceClose = true): Path2D | null {
+    if (!this.selPoly || !this.selection || this.selPoly.length < 3) return null;
+    const { x, y } = this.selection;
+    const path = new Path2D();
+    path.moveTo(x + this.selPoly[0].x, y + this.selPoly[0].y);
+    for (let i = 1; i < this.selPoly.length; i++)
+      path.lineTo(x + this.selPoly[i].x, y + this.selPoly[i].y);
+    if (forceClose || this.selPolyClosed) path.closePath();
+    return path;
+  }
+
   // Update the live marquee while dragging (no float yet).
   setMarquee(rect: Rect): void {
-    this.selection = this.clampRect(rect);
+    this.setSelection(this.clampRect(rect));
     this.emit();
   }
 
   // Finalize the marquee on pointer-up. A zero-area drag clears the selection.
   finalizeMarquee(rect: Rect): void {
     const r = this.clampRect(rect);
-    this.selection = r.w >= 1 && r.h >= 1 ? r : null;
+    this.setSelection(r.w >= 1 && r.h >= 1 ? r : null);
     if (!this.selection) this.clearSelectionLayer();
     this.emit();
   }
 
+  // Live free-form outline while the lasso drags. The selection rect tracks the
+  // outline's bounding box; the outline stays open until finalized.
+  setLassoPreview(points: Point[]): void {
+    const r = this.polyBounds(points);
+    this.setSelection(r);
+    if (r) this.attachPoly(points, r, false);
+    this.emit();
+  }
+
+  // Close the lasso back to its start on pointer-up. Degenerate paths (fewer
+  // than 3 points or an empty bounding box) clear the selection.
+  finalizeLasso(points: Point[]): void {
+    const r = points.length >= 3 ? this.polyBounds(points) : null;
+    this.setSelection(r);
+    if (r) this.attachPoly(points, r, true);
+    if (!this.selection) this.clearSelectionLayer();
+    this.emit();
+  }
+
+  // Bounding box of a point list, clamped to the canvas.
+  private polyBounds(points: Point[]): Rect | null {
+    if (!points.length) return null;
+    let minX = points[0].x,
+      minY = points[0].y,
+      maxX = points[0].x,
+      maxY = points[0].y;
+    for (const p of points) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+    const r = this.clampRect({
+      x: minX,
+      y: minY,
+      w: maxX - minX,
+      h: maxY - minY,
+    });
+    return r.w >= 1 && r.h >= 1 ? r : null;
+  }
+
+  // Store the outline relative to its bounding box (setSelection cleared it).
+  private attachPoly(points: Point[], origin: Rect, closed: boolean): void {
+    this.selPoly = points.map((p) => ({
+      x: p.x - origin.x,
+      y: p.y - origin.y,
+    }));
+    this.selPolyClosed = closed;
+  }
+
   selectAll(): void {
     this.commitFloat();
-    this.selection = { x: 0, y: 0, w: this.width, h: this.height };
+    this.setSelection({ x: 0, y: 0, w: this.width, h: this.height });
     this.emit();
   }
 
   // Lift the selected base pixels into a float so they can be dragged, leaving a
   // hole filled with the background color. Part of a move: no snapshot yet.
+  // A lasso selection lifts only the pixels inside its outline (the float is
+  // transparent outside it) and the hole matches the outline, not the box.
   beginFloat(bgColor: string): void {
     if (!this.selection || this.floatCanvas) return;
     const r = this.selection;
+    const path = this.selPath();
     const fc = document.createElement("canvas");
     fc.width = r.w;
     fc.height = r.h;
-    fc.getContext("2d")!.drawImage(
-      this.baseCanvas,
-      r.x,
-      r.y,
-      r.w,
-      r.h,
-      0,
-      0,
-      r.w,
-      r.h,
-    );
+    const fctx = fc.getContext("2d")!;
+    if (path) {
+      fctx.translate(-r.x, -r.y);
+      fctx.clip(path);
+      fctx.drawImage(this.baseCanvas, 0, 0);
+    } else {
+      fctx.drawImage(this.baseCanvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+    }
     this.floatCanvas = fc;
     this.floatX = r.x;
     this.floatY = r.y;
     this.floatLifted = true;
     this.base.save();
     this.base.fillStyle = bgColor;
-    this.base.fillRect(r.x, r.y, r.w, r.h);
+    if (path) this.base.fill(path);
+    else this.base.fillRect(r.x, r.y, r.w, r.h);
     this.base.restore();
     this.dirty = true;
     this.emit();
@@ -411,14 +545,15 @@ export class CanvasEngine {
   // Commit any float, drop the marquee, and clear the selection layer.
   deselect(): void {
     this.commitFloat();
-    this.selection = null;
+    this.setSelection(null);
     this.clearSelectionLayer();
     this.emit();
   }
 
   // Delete the selection contents. A moved float already punched a hole, so we
   // just drop it; a pasted float is additive (drop, no base change); a plain
-  // selection is cleared to the background color.
+  // selection is cleared to the background color (lasso: just the outline's
+  // interior, not its bounding box).
   deleteSelection(bgColor: string): void {
     if (this.floatCanvas) {
       const changed = this.floatLifted;
@@ -429,20 +564,23 @@ export class CanvasEngine {
       }
     } else if (this.selection) {
       const r = this.selection;
+      const path = this.selPath();
       this.base.save();
       this.base.fillStyle = bgColor;
-      this.base.fillRect(r.x, r.y, r.w, r.h);
+      if (path) this.base.fill(path);
+      else this.base.fillRect(r.x, r.y, r.w, r.h);
       this.base.restore();
       this.history.push(this.readBase());
       this.dirty = true;
     }
-    this.selection = null;
+    this.setSelection(null);
     this.clearSelectionLayer();
     this.emit();
   }
 
   // The pixels the clipboard should copy: the float if any, else the selected
-  // base region, else null (caller may fall back to the whole image).
+  // base region (lasso: transparent outside the outline), else null (caller may
+  // fall back to the whole image).
   getSelectionPixels(): ImageData | null {
     if (this.floatCanvas) {
       return this.floatCanvas
@@ -451,6 +589,17 @@ export class CanvasEngine {
     }
     if (this.selection) {
       const r = this.selection;
+      const path = this.selPath();
+      if (path) {
+        const c = document.createElement("canvas");
+        c.width = r.w;
+        c.height = r.h;
+        const cctx = c.getContext("2d")!;
+        cctx.translate(-r.x, -r.y);
+        cctx.clip(path);
+        cctx.drawImage(this.baseCanvas, 0, 0);
+        return cctx.getImageData(0, 0, r.w, r.h);
+      }
       return this.base.getImageData(r.x, r.y, r.w, r.h);
     }
     return null;
@@ -484,38 +633,46 @@ export class CanvasEngine {
     this.floatLifted = false;
     this.floatX = 0;
     this.floatY = 0;
-    this.selection = { x: 0, y: 0, w: img.width, h: img.height };
+    this.setSelection({ x: 0, y: 0, w: img.width, h: img.height });
     this.dirty = true;
     this.emit();
   }
 
   // Repaint the selection layer: floating content, then animated marching ants
-  // around the current marquee. Driven by CanvasStage's rAF loop.
+  // along the current marquee — the rect, or the lasso outline when one exists.
+  // Driven by CanvasStage's rAF loop.
   renderSelection(dashOffset = 0): void {
     const s = this.sel;
     s.clearRect(0, 0, this.width, this.height);
     if (this.floatCanvas) s.drawImage(this.floatCanvas, this.floatX, this.floatY);
     const r = this.selection;
     if (!r || r.w < 1 || r.h < 1) return;
+    const path = this.selPath(false);
     s.save();
     s.lineWidth = 1;
     s.setLineDash([4, 4]);
     s.strokeStyle = "#ffffff";
     s.lineDashOffset = -dashOffset;
-    s.strokeRect(r.x + 0.5, r.y + 0.5, Math.max(0, r.w - 1), Math.max(0, r.h - 1));
+    if (path) s.stroke(path);
+    else
+      s.strokeRect(r.x + 0.5, r.y + 0.5, Math.max(0, r.w - 1), Math.max(0, r.h - 1));
     s.strokeStyle = "#000000";
     s.lineDashOffset = -dashOffset + 4;
-    s.strokeRect(r.x + 0.5, r.y + 0.5, Math.max(0, r.w - 1), Math.max(0, r.h - 1));
+    if (path) s.stroke(path);
+    else
+      s.strokeRect(r.x + 0.5, r.y + 0.5, Math.max(0, r.w - 1), Math.max(0, r.h - 1));
     s.restore();
   }
 
   // Whether a point (image px) is inside the current selection — for the select
-  // tool's move-vs-new-marquee decision.
+  // tools' move-vs-new-marquee decision. A lasso tests against its outline, not
+  // the bounding box.
   isInsideSelection(p: Point): boolean {
     const r = this.selection;
-    return (
-      !!r && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h
-    );
+    if (!r) return false;
+    const path = this.selPath();
+    if (path) return this.sel.isPointInPath(path, p.x, p.y);
+    return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
   }
 
   // Snapshot the current base into a detached canvas (for transforms/resize).

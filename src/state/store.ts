@@ -16,9 +16,11 @@ export const engine = new CanvasEngine();
 interface PaintState {
   // — config / UI state (reactive) —
   activeToolId: ToolId;
+  previousToolId: ToolId; // what the eyedropper returns to after a pick
   color1: string; // foreground (primary button)
   color2: string; // background (secondary button)
-  brushSize: number;
+  brushSize: number; // continuous width for pencil/brush/eraser
+  shapeSize: number; // discrete stroke width for shape tools (1/3/5/8)
   textStyle: TextStyle;
   imageSize: { w: number; h: number }; // mirrored from the engine
   view: ViewTransform; // zoom/pan
@@ -32,6 +34,7 @@ interface PaintState {
   canUndo: boolean;
   canRedo: boolean;
   hasSelection: boolean;
+  selectionSize: { w: number; h: number } | null; // status-bar readout
 
   // — actions —
   setTool: (id: ToolId) => void;
@@ -39,6 +42,7 @@ interface PaintState {
   setColor2: (c: string) => void;
   swapColors: () => void;
   setBrushSize: (n: number) => void;
+  setShapeSize: (n: number) => void;
   setTextStyle: (patch: Partial<TextStyle>) => void;
   setZoom: (z: number) => void;
   setCursorPos: (p: Point | null) => void;
@@ -52,14 +56,17 @@ interface PaintState {
     width: number;
     height: number;
     hasSelection: boolean;
+    selectionSize: { w: number; h: number } | null;
   }) => void;
 }
 
 export const usePaintStore = create<PaintState>((set) => ({
   activeToolId: "pencil",
+  previousToolId: "pencil",
   color1: "#000000",
   color2: "#ffffff",
   brushSize: 4,
+  shapeSize: 3,
   textStyle: {
     fontFamily: "Helvetica",
     fontSize: 24,
@@ -79,12 +86,19 @@ export const usePaintStore = create<PaintState>((set) => ({
   canUndo: false,
   canRedo: false,
   hasSelection: false,
+  selectionSize: null,
 
-  setTool: (id) => set({ activeToolId: id }),
+  setTool: (id) =>
+    set((s) =>
+      id === s.activeToolId
+        ? {}
+        : { activeToolId: id, previousToolId: s.activeToolId },
+    ),
   setColor1: (c) => set({ color1: c }),
   setColor2: (c) => set({ color2: c }),
   swapColors: () => set((s) => ({ color1: s.color2, color2: s.color1 })),
   setBrushSize: (n) => set({ brushSize: n }),
+  setShapeSize: (n) => set({ shapeSize: n }),
   setTextStyle: (patch) =>
     set((s) => ({ textStyle: { ...s.textStyle, ...patch } })),
   setZoom: (z) => set((s) => ({ view: { ...s.view, zoom: z } })),
@@ -98,6 +112,7 @@ export const usePaintStore = create<PaintState>((set) => ({
       canRedo: s.canRedo,
       isDirty: s.isDirty,
       hasSelection: s.hasSelection,
+      selectionSize: s.selectionSize,
       // The engine owns the document dimensions (they change on Open/Resize/
       // Crop/undo); mirror them here so CSS sizing and the status bar follow.
       imageSize: { w: s.width, h: s.height },

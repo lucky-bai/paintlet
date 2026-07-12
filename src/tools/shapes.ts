@@ -1,5 +1,17 @@
 import type { Point } from "../engine/types";
 
+// Hard-edged strokes must land on the pixel grid or the alpha-hardening step
+// mis-sizes them: an odd-width stroke centered on an integer coordinate covers
+// its two edge pixels at exactly 50%, and hardening rounds BOTH up — a "1px"
+// line commits 2px wide. Odd widths need their geometry on half-pixel centers.
+export function oddStrokeOffset(size: number): number {
+  return size % 2 ? 0.5 : 0;
+}
+
+export function roundPoint(p: Point): Point {
+  return { x: Math.round(p.x), y: Math.round(p.y) };
+}
+
 // Snap the end point so the segment lies on a multiple of 45° from the start
 // (Shift-constrain for the line tool).
 export function constrainTo45(start: Point, end: Point): Point {

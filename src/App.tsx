@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { usePaintStore } from "./state/store";
+import { stageHooks } from "./state/stageHooks";
 import type { ToolId } from "./engine/types";
 import { installAppMenu } from "./menu/appMenu";
 import * as A from "./actions";
@@ -16,6 +17,7 @@ import { ResizeDialog } from "./components/dialogs/ResizeDialog";
 // keystroke in the text editor.
 const TOOL_KEYS: Record<string, ToolId> = {
   s: "select",
+  w: "freeSelect",
   p: "pencil",
   b: "brush",
   f: "fill",
@@ -23,8 +25,11 @@ const TOOL_KEYS: Record<string, ToolId> = {
   e: "eraser",
   i: "eyedropper",
   l: "line",
+  c: "curve",
   r: "rectangle",
+  u: "roundedRectangle",
   o: "ellipse",
+  g: "polygon",
 };
 
 function App() {
@@ -47,6 +52,9 @@ function App() {
     let unlisten: (() => void) | undefined;
     getCurrentWindow()
       .onCloseRequested(async (event) => {
+        // A pending text edit counts as unsaved work: commit it so the dirty
+        // check below sees it (and so a canceled close doesn't lose it).
+        stageHooks.flushTextEdit?.();
         if (!usePaintStore.getState().isDirty) return; // clean → just close
         const discard = await ask("You have unsaved changes. Close without saving?", {
           title: "VibePaint",
@@ -96,6 +104,9 @@ function App() {
         } else if (e.key === "0") {
           e.preventDefault();
           A.actualSize();
+        } else if (e.key === "9") {
+          e.preventDefault();
+          A.fitToWindow();
         }
         return; // other ⌘-combos belong to the menu
       }

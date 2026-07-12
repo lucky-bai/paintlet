@@ -7,10 +7,11 @@ import {
 } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
-// Ellipse — outline inscribed in the drag bounding box, previewed on the
-// overlay. Hold Shift for a circle.
-export class EllipseTool implements Tool {
-  id = "ellipse" as const;
+// Rounded rectangle — outline with rounded corners, previewed on the overlay.
+// Hold Shift for a square. Hard-edged like the other shapes (commits crisp), so
+// a flood fill of the interior reaches the border with no anti-aliased halo.
+export class RoundedRectangleTool implements Tool {
+  id = "roundedRectangle" as const;
   cursor = "crosshair";
 
   private start: Point | null = null;
@@ -30,7 +31,7 @@ export class EllipseTool implements Tool {
     if (!this.start) return;
     this.draw(p, ctx);
     this.start = null;
-    ctx.commit("ellipse", true);
+    ctx.commit("rounded rectangle", true);
   }
 
   onDeactivate(ctx: ToolContext): void {
@@ -44,6 +45,9 @@ export class EllipseTool implements Tool {
     if (!this.start) return;
     const end = p.shiftKey ? constrainSquare(this.start, p.point) : p.point;
     const { x, y, w, h } = normalizeRect(roundPoint(this.start), roundPoint(end));
+    // Corner radius scales with the smaller side, capped so large rectangles
+    // don't turn into a stadium shape.
+    const r = Math.min(Math.min(w, h) / 2, 24);
     const off = oddStrokeOffset(ctx.size);
     ctx.clearPreview();
     const o = ctx.overlay;
@@ -51,8 +55,15 @@ export class EllipseTool implements Tool {
     o.translate(off, off);
     o.strokeStyle = this.color;
     o.lineWidth = ctx.size;
+    o.lineJoin = "round";
+    // arcTo rounds each corner; widely supported in the webview.
     o.beginPath();
-    o.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    o.moveTo(x + r, y);
+    o.arcTo(x + w, y, x + w, y + h, r);
+    o.arcTo(x + w, y + h, x, y + h, r);
+    o.arcTo(x, y + h, x, y, r);
+    o.arcTo(x, y, x + w, y, r);
+    o.closePath();
     o.stroke();
     o.restore();
   }

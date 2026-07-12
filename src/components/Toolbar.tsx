@@ -1,6 +1,7 @@
 import { engine, usePaintStore } from "../state/store";
-import { isImplemented } from "../tools/registry";
+import { isImplemented, isShapeTool } from "../tools/registry";
 import type { ToolId } from "../engine/types";
+import { cx } from "../lib/cx";
 import { Icon, type IconName } from "./Icon";
 import { ToolButton } from "./ToolButton";
 import { ColorControls } from "./ColorControls";
@@ -10,6 +11,7 @@ type ToolDef = { id: ToolId; icon: IconName; label: string; key: string };
 
 const SELECT_TOOLS: ToolDef[] = [
   { id: "select", icon: "select", label: "Select", key: "S" },
+  { id: "freeSelect", icon: "lasso", label: "Free-form select", key: "W" },
 ];
 
 const DRAW_TOOLS: ToolDef[] = [
@@ -23,9 +25,20 @@ const DRAW_TOOLS: ToolDef[] = [
 
 const SHAPE_TOOLS: ToolDef[] = [
   { id: "line", icon: "line", label: "Line", key: "L" },
+  { id: "curve", icon: "curve", label: "Curve", key: "C" },
   { id: "rectangle", icon: "rectangle", label: "Rectangle", key: "R" },
+  {
+    id: "roundedRectangle",
+    icon: "roundedRectangle",
+    label: "Rounded rectangle",
+    key: "U",
+  },
   { id: "ellipse", icon: "ellipse", label: "Ellipse", key: "O" },
+  { id: "polygon", icon: "polygon", label: "Polygon", key: "G" },
 ];
+
+// Shapes draw at one of a few fixed widths (not the continuous pencil slider).
+const SHAPE_SIZES = [1, 3, 5, 8];
 
 function Divider() {
   return <div className="mx-1 h-7 w-px bg-hairline" />;
@@ -77,6 +90,35 @@ function SizeSlider() {
   );
 }
 
+// Discrete stroke-width picker shown while a shape tool is active.
+function ShapeSizePicker() {
+  const shapeSize = usePaintStore((s) => s.shapeSize);
+  const setShapeSize = usePaintStore((s) => s.setShapeSize);
+  return (
+    <div className="flex items-center gap-2 px-1">
+      <span className="text-xs text-ink-muted">Size</span>
+      <div className="flex items-center gap-0.5">
+        {SHAPE_SIZES.map((n) => (
+          <button
+            key={n}
+            type="button"
+            title={`${n}px`}
+            onClick={() => setShapeSize(n)}
+            className={cx(
+              "h-7 w-8 rounded-md text-xs tabular-nums",
+              shapeSize === n
+                ? "bg-[var(--vp-accent)] text-white"
+                : "text-ink-muted hover:bg-hover",
+            )}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Toolbar() {
   const canUndo = usePaintStore((s) => s.canUndo);
   const canRedo = usePaintStore((s) => s.canRedo);
@@ -100,11 +142,29 @@ export function Toolbar() {
       <ToolGroup tools={DRAW_TOOLS} />
       <Divider />
       <ToolGroup tools={SHAPE_TOOLS} />
-      <Divider />
 
-      {/* Contextual options: text styling when the Text tool is active, else the
-          shared stroke-size slider. */}
-      {activeToolId === "text" ? <TextOptions /> : <SizeSlider />}
+      {/* Contextual options: text styling for the Text tool, the discrete size
+          picker for shapes, the continuous slider for freehand strokes — and
+          nothing for tools with no size (select/lasso/fill/eyedropper), so the
+          bar never shows a control that does nothing. */}
+      {activeToolId === "text" ? (
+        <>
+          <Divider />
+          <TextOptions />
+        </>
+      ) : isShapeTool(activeToolId) ? (
+        <>
+          <Divider />
+          <ShapeSizePicker />
+        </>
+      ) : activeToolId === "pencil" ||
+        activeToolId === "brush" ||
+        activeToolId === "eraser" ? (
+        <>
+          <Divider />
+          <SizeSlider />
+        </>
+      ) : null}
 
       <Divider />
 

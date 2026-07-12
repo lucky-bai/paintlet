@@ -1,14 +1,12 @@
 import { usePaintStore } from "../state/store";
-
-const ZOOM_MIN = 0.25;
-const ZOOM_MAX = 8;
-const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+import { ZOOM_MAX, ZOOM_MIN, clampZoom } from "../lib/zoom";
 
 // Bottom status bar: cursor coordinates, image dimensions, and a persistent
 // zoom slider + percentage on the right — a signature modern-Paint element.
 export function StatusBar() {
   const cursorPos = usePaintStore((s) => s.cursorPos);
   const { w, h } = usePaintStore((s) => s.imageSize);
+  const selectionSize = usePaintStore((s) => s.selectionSize);
   const zoom = usePaintStore((s) => s.view.zoom);
   const setZoom = usePaintStore((s) => s.setZoom);
 
@@ -22,6 +20,11 @@ export function StatusBar() {
       <span className="tabular-nums">
         {w} × {h}px
       </span>
+      {selectionSize && (
+        <span className="tabular-nums">
+          ⬚ {selectionSize.w} × {selectionSize.h}px
+        </span>
+      )}
 
       <div className="ml-auto flex items-center gap-2">
         <button

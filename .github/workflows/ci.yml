@@ -1,0 +1,46 @@
+# Frontend CI: typecheck + bundle, unit tests (Vitest), and the headless-
+# browser e2e smoke (tests/e2e.mjs). The Tauri/Rust shell is intentionally not
+# built here — every change so far is frontend-only and a Rust build would
+# dominate the runtime; add a separate job if src-tauri/ starts changing.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck and build
+        run: pnpm build
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E smoke test
+        run: pnpm test:e2e
+
+      - name: Upload e2e screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshot
+          path: tests/artifacts/
+          if-no-files-found: ignore

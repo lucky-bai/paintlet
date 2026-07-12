@@ -4,11 +4,15 @@ import { PencilTool } from "./PencilTool";
 import { BrushTool } from "./BrushTool";
 import { EraserTool } from "./EraserTool";
 import { LineTool } from "./LineTool";
+import { CurveTool } from "./CurveTool";
 import { RectangleTool } from "./RectangleTool";
 import { EllipseTool } from "./EllipseTool";
+import { RoundedRectangleTool } from "./RoundedRectangleTool";
+import { PolygonTool } from "./PolygonTool";
 import { FillTool } from "./FillTool";
 import { EyedropperTool } from "./EyedropperTool";
 import { SelectTool } from "./SelectTool";
+import { LassoTool } from "./LassoTool";
 
 // id → tool instance. Tools are stateful (they track an in-progress stroke), so
 // we hold one shared instance each. Adding a pointer tool is a one-line add here
@@ -18,11 +22,15 @@ const registry: Partial<Record<ToolId, Tool>> = {
   brush: new BrushTool(),
   eraser: new EraserTool(),
   line: new LineTool(),
+  curve: new CurveTool(),
   rectangle: new RectangleTool(),
   ellipse: new EllipseTool(),
+  roundedRectangle: new RoundedRectangleTool(),
+  polygon: new PolygonTool(),
   fill: new FillTool(),
   eyedropper: new EyedropperTool(),
   select: new SelectTool(),
+  freeSelect: new LassoTool(),
 };
 
 // The text tool needs a floating DOM input, so it isn't a pointer-driven Tool;
@@ -35,6 +43,21 @@ const ENABLED: ReadonlySet<ToolId> = new Set<ToolId>([
 
 export function getTool(id: ToolId): Tool | undefined {
   return registry[id];
+}
+
+// Shape tools use the discrete 1/3/5/8px size selector rather than the
+// continuous pencil/brush slider.
+const SHAPE_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
+  "line",
+  "curve",
+  "rectangle",
+  "ellipse",
+  "roundedRectangle",
+  "polygon",
+]);
+
+export function isShapeTool(id: ToolId): boolean {
+  return SHAPE_TOOLS.has(id);
 }
 
 // Tools the toolbar should render as enabled (implemented).
