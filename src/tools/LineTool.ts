@@ -1,5 +1,5 @@
 import type { Point } from "../engine/types";
-import { constrainTo45 } from "./shapes";
+import { constrainTo45, oddStrokeOffset, roundPoint } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
 // Straight line — preview on the overlay each move, commit on release. Hold
@@ -37,15 +37,22 @@ export class LineTool implements Tool {
 
   private draw(p: PointerInfo, ctx: ToolContext): void {
     if (!this.start) return;
-    const end = p.shiftKey ? constrainTo45(this.start, p.point) : p.point;
+    const a = roundPoint(this.start);
+    const b = roundPoint(
+      p.shiftKey ? constrainTo45(this.start, p.point) : p.point,
+    );
+    const off = oddStrokeOffset(ctx.size);
     ctx.clearPreview();
     const o = ctx.overlay;
+    o.save();
+    o.translate(off, off);
     o.strokeStyle = this.color;
     o.lineWidth = ctx.size;
     o.lineCap = "round";
     o.beginPath();
-    o.moveTo(this.start.x, this.start.y);
-    o.lineTo(end.x, end.y);
+    o.moveTo(a.x, a.y);
+    o.lineTo(b.x, b.y);
     o.stroke();
+    o.restore();
   }
 }

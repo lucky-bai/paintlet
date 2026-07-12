@@ -71,6 +71,8 @@ export async function installAppMenu(): Promise<void> {
       await item("Flip Horizontal", undefined, A.flipHorizontal),
       await item("Flip Vertical", undefined, A.flipVertical),
       await item("Rotate 90° Right", undefined, A.rotateRight),
+      await item("Rotate 90° Left", undefined, A.rotateLeft),
+      await item("Rotate 180°", undefined, A.rotate180),
     ],
   });
 

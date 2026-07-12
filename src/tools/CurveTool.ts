@@ -1,5 +1,5 @@
 import type { Point } from "../engine/types";
-import { constrainTo45 } from "./shapes";
+import { constrainTo45, oddStrokeOffset, roundPoint } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
 // Curve — Paint's three-gesture Bézier. First drag lays down a straight line
@@ -85,20 +85,26 @@ export class CurveTool implements Tool {
   // one control point → cubic with two.
   private render(ctx: ToolContext, cp1: Point | null, cp2: Point | null): void {
     ctx.clearPreview();
+    const a = roundPoint(this.start);
+    const b = roundPoint(this.end);
+    const off = oddStrokeOffset(ctx.size);
     const o = ctx.overlay;
+    o.save();
+    o.translate(off, off);
     o.strokeStyle = this.color;
     o.lineWidth = ctx.size;
     o.lineCap = "round";
     o.beginPath();
-    o.moveTo(this.start.x, this.start.y);
+    o.moveTo(a.x, a.y);
     if (cp1 && cp2) {
-      o.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, this.end.x, this.end.y);
+      o.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, b.x, b.y);
     } else if (cp1) {
-      o.quadraticCurveTo(cp1.x, cp1.y, this.end.x, this.end.y);
+      o.quadraticCurveTo(cp1.x, cp1.y, b.x, b.y);
     } else {
-      o.lineTo(this.end.x, this.end.y);
+      o.lineTo(b.x, b.y);
     }
     o.stroke();
+    o.restore();
   }
 
   private reset(): void {

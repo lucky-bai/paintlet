@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { engine, usePaintStore } from "../state/store";
+import { stageHooks } from "../state/stageHooks";
 import { viewport } from "../state/viewport";
 import { screenToCanvas } from "../engine/coords";
 import { getTool, isShapeTool } from "../tools/registry";
@@ -45,6 +46,21 @@ export function CanvasStage() {
     clientY: number;
     ix: number;
     iy: number;
+  } | null>(null);
+
+  // — canvas drag-resize handles (right / bottom / corner of the paper) —
+  // Dragging shows a dashed preview of the target size; the canvas is cropped
+  // or extended (white fill, anchored top-left) on release — as in Win11 Paint.
+  const [resizePreview, setResizePreview] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
+  const resizeDrag = useRef<{
+    axis: "x" | "y" | "xy";
+    startW: number;
+    startH: number;
+    sx: number;
+    sy: number;
   } | null>(null);
 
   const { w, h } = usePaintStore((s) => s.imageSize);
@@ -140,6 +156,30 @@ export function CanvasStage() {
     o.restore();
     engine.commit("text");
   };
+
+  // Expose the stage's private state to the action layer: committing a pending
+  // text edit (before Save/New/Open/close) and cancelling an in-progress tool
+  // session (before Undo/Redo). Selection tools are excluded from the latter —
+  // their onDeactivate would bake the float and push a history step of its own.
+  useEffect(() => {
+    stageHooks.flushTextEdit = () => {
+      if (textEditRef.current) {
+        commitText(textEditRef.current);
+        setTextEdit(null);
+      }
+    };
+    stageHooks.cancelToolSession = () => {
+      const id = usePaintStore.getState().activeToolId;
+      if (id === "select" || id === "freeSelect" || id === "text") return;
+      drawing.current = false;
+      getTool(id)?.onDeactivate?.(makeCtx());
+    };
+    return () => {
+      stageHooks.flushTextEdit = null;
+      stageHooks.cancelToolSession = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Commit the previous tool's pending state when the active tool changes:
   // freehand/shape cleanup, selection bake-down, and pending-text rasterization.
@@ -320,6 +360,45 @@ export function CanvasStage() {
     }
   };
 
+  // Canvas-resize handle drag. Pointer capture keeps the gesture alive when
+  // the cursor leaves the little handle; sizes are computed from the total
+  // client-pixel delta divided by zoom, clamped to at least 1×1.
+  const resizeTarget = (e: React.PointerEvent) => {
+    const d = resizeDrag.current!;
+    const z = usePaintStore.getState().view.zoom;
+    return {
+      w:
+        d.axis === "y"
+          ? d.startW
+          : Math.max(1, Math.round(d.startW + (e.clientX - d.sx) / z)),
+      h:
+        d.axis === "x"
+          ? d.startH
+          : Math.max(1, Math.round(d.startH + (e.clientY - d.sy) / z)),
+    };
+  };
+  const onHandleDown = (axis: "x" | "y" | "xy") => (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    resizeDrag.current = { axis, startW: w, startH: h, sx: e.clientX, sy: e.clientY };
+    setResizePreview({ w, h });
+  };
+  const onHandleMove = (e: React.PointerEvent) => {
+    if (!resizeDrag.current) return;
+    e.stopPropagation();
+    setResizePreview(resizeTarget(e));
+  };
+  const onHandleUp = (e: React.PointerEvent) => {
+    const d = resizeDrag.current;
+    if (!d) return;
+    e.stopPropagation();
+    const t = resizeTarget(e);
+    resizeDrag.current = null;
+    setResizePreview(null);
+    if (t.w !== d.startW || t.h !== d.startH) engine.setCanvasSize(t.w, t.h);
+  };
+
   // Esc cancels an in-progress stroke/shape (including a multi-click polygon
   // or curve between gestures, via the tool's own onKeyDown), or deselects a
   // finished selection.
@@ -361,6 +440,10 @@ export function CanvasStage() {
     if (e.button === 1 || spaceHeldRef.current) return;
     // Text tool: place/reposition the floating editor instead of stroking.
     if (activeToolId === "text") {
+      // Cancel the browser's post-mousedown focus default, which would blur
+      // the freshly mounted textarea back to <body> — where the next
+      // keystrokes would hit the single-key tool shortcuts instead.
+      e.preventDefault();
       const pt = screenToCanvas(e.clientX, e.clientY, overlayRef.current!);
       if (textEdit) commitText(textEdit); // commit any existing edit first
       setTextEdit({ cx: pt.x, cy: pt.y, value: "" });
@@ -394,6 +477,11 @@ export function CanvasStage() {
       overlayRef.current!.releasePointerCapture(e.pointerId);
     } catch {
       /* capture may already be released */
+    }
+    // Classic Paint: after the eyedropper picks, return to the previous tool.
+    if (activeToolId === "eyedropper") {
+      const s = usePaintStore.getState();
+      s.setTool(s.previousToolId === "eyedropper" ? "pencil" : s.previousToolId);
     }
   };
 
@@ -446,12 +534,56 @@ export function CanvasStage() {
             style={{ ...cssSize, imageRendering: "pixelated" }}
           />
 
+          {/* Canvas resize handles (right / bottom / corner), as in Win11
+              Paint: drag to crop or extend the canvas. */}
+          {(
+            [
+              ["x", { right: -6, top: "50%", marginTop: -5 }, "ew-resize"],
+              ["y", { bottom: -6, left: "50%", marginLeft: -5 }, "ns-resize"],
+              ["xy", { right: -6, bottom: -6 }, "nwse-resize"],
+            ] as const
+          ).map(([axis, pos, cur]) => (
+            <div
+              key={axis}
+              title="Drag to resize the canvas"
+              className="absolute z-10 h-2.5 w-2.5 rounded-[2px] border border-neutral-400 bg-white shadow-sm"
+              style={{ ...pos, cursor: cur }}
+              onPointerDown={onHandleDown(axis)}
+              onPointerMove={onHandleMove}
+              onPointerUp={onHandleUp}
+              onPointerCancel={onHandleUp}
+            />
+          ))}
+
+          {/* Dashed preview + size badge while a resize handle drags. */}
+          {resizePreview && (
+            <>
+              <div
+                className="pointer-events-none absolute left-0 top-0 z-10 border border-dashed border-neutral-500"
+                style={{
+                  width: resizePreview.w * zoom,
+                  height: resizePreview.h * zoom,
+                }}
+              />
+              <div
+                className="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-surface px-1.5 py-0.5 text-xs text-ink shadow"
+                style={{
+                  left: resizePreview.w * zoom + 8,
+                  top: resizePreview.h * zoom + 8,
+                }}
+              >
+                {resizePreview.w} × {resizePreview.h}px
+              </div>
+            </>
+          )}
+
           {/* Floating multi-line text editor — rasterized onto the canvas when
               a new action starts or the tool changes. */}
           {textEdit && box && (
             <textarea
               key={`${textEdit.cx},${textEdit.cy}`}
               autoFocus
+              ref={(el) => el?.focus()}
               value={textEdit.value}
               spellCheck={false}
               wrap="off"

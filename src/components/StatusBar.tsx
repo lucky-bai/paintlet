@@ -6,6 +6,7 @@ import { ZOOM_MAX, ZOOM_MIN, clampZoom } from "../lib/zoom";
 export function StatusBar() {
   const cursorPos = usePaintStore((s) => s.cursorPos);
   const { w, h } = usePaintStore((s) => s.imageSize);
+  const selectionSize = usePaintStore((s) => s.selectionSize);
   const zoom = usePaintStore((s) => s.view.zoom);
   const setZoom = usePaintStore((s) => s.setZoom);
 
@@ -19,6 +20,11 @@ export function StatusBar() {
       <span className="tabular-nums">
         {w} × {h}px
       </span>
+      {selectionSize && (
+        <span className="tabular-nums">
+          ⬚ {selectionSize.w} × {selectionSize.h}px
+        </span>
+      )}
 
       <div className="ml-auto flex items-center gap-2">
         <button

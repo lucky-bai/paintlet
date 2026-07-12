@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { usePaintStore } from "./state/store";
+import { stageHooks } from "./state/stageHooks";
 import type { ToolId } from "./engine/types";
 import { installAppMenu } from "./menu/appMenu";
 import * as A from "./actions";
@@ -51,6 +52,9 @@ function App() {
     let unlisten: (() => void) | undefined;
     getCurrentWindow()
       .onCloseRequested(async (event) => {
+        // A pending text edit counts as unsaved work: commit it so the dirty
+        // check below sees it (and so a canceled close doesn't lose it).
+        stageHooks.flushTextEdit?.();
         if (!usePaintStore.getState().isDirty) return; // clean → just close
         const discard = await ask("You have unsaved changes. Close without saving?", {
           title: "VibePaint",

@@ -1,5 +1,10 @@
 import type { Point } from "../engine/types";
-import { constrainSquare, normalizeRect } from "./shapes";
+import {
+  constrainSquare,
+  normalizeRect,
+  oddStrokeOffset,
+  roundPoint,
+} from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
 // Rectangle — outline in the stroke color, previewed on the overlay. Hold Shift
@@ -38,12 +43,16 @@ export class RectangleTool implements Tool {
   private draw(p: PointerInfo, ctx: ToolContext): void {
     if (!this.start) return;
     const end = p.shiftKey ? constrainSquare(this.start, p.point) : p.point;
-    const { x, y, w, h } = normalizeRect(this.start, end);
+    const { x, y, w, h } = normalizeRect(roundPoint(this.start), roundPoint(end));
+    const off = oddStrokeOffset(ctx.size);
     ctx.clearPreview();
     const o = ctx.overlay;
+    o.save();
+    o.translate(off, off);
     o.strokeStyle = this.color;
     o.lineWidth = ctx.size;
     o.lineJoin = "miter";
     o.strokeRect(x, y, w, h);
+    o.restore();
   }
 }

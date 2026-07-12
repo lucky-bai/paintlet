@@ -1,5 +1,10 @@
 import type { Point } from "../engine/types";
-import { constrainSquare, normalizeRect } from "./shapes";
+import {
+  constrainSquare,
+  normalizeRect,
+  oddStrokeOffset,
+  roundPoint,
+} from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
 // Rounded rectangle — outline with rounded corners, previewed on the overlay.
@@ -39,12 +44,15 @@ export class RoundedRectangleTool implements Tool {
   private draw(p: PointerInfo, ctx: ToolContext): void {
     if (!this.start) return;
     const end = p.shiftKey ? constrainSquare(this.start, p.point) : p.point;
-    const { x, y, w, h } = normalizeRect(this.start, end);
+    const { x, y, w, h } = normalizeRect(roundPoint(this.start), roundPoint(end));
     // Corner radius scales with the smaller side, capped so large rectangles
     // don't turn into a stadium shape.
     const r = Math.min(Math.min(w, h) / 2, 24);
+    const off = oddStrokeOffset(ctx.size);
     ctx.clearPreview();
     const o = ctx.overlay;
+    o.save();
+    o.translate(off, off);
     o.strokeStyle = this.color;
     o.lineWidth = ctx.size;
     o.lineJoin = "round";
@@ -57,5 +65,6 @@ export class RoundedRectangleTool implements Tool {
     o.arcTo(x, y, x + w, y, r);
     o.closePath();
     o.stroke();
+    o.restore();
   }
 }

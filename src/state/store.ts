@@ -16,6 +16,7 @@ export const engine = new CanvasEngine();
 interface PaintState {
   // — config / UI state (reactive) —
   activeToolId: ToolId;
+  previousToolId: ToolId; // what the eyedropper returns to after a pick
   color1: string; // foreground (primary button)
   color2: string; // background (secondary button)
   brushSize: number; // continuous width for pencil/brush/eraser
@@ -33,6 +34,7 @@ interface PaintState {
   canUndo: boolean;
   canRedo: boolean;
   hasSelection: boolean;
+  selectionSize: { w: number; h: number } | null; // status-bar readout
 
   // — actions —
   setTool: (id: ToolId) => void;
@@ -54,11 +56,13 @@ interface PaintState {
     width: number;
     height: number;
     hasSelection: boolean;
+    selectionSize: { w: number; h: number } | null;
   }) => void;
 }
 
 export const usePaintStore = create<PaintState>((set) => ({
   activeToolId: "pencil",
+  previousToolId: "pencil",
   color1: "#000000",
   color2: "#ffffff",
   brushSize: 4,
@@ -82,8 +86,14 @@ export const usePaintStore = create<PaintState>((set) => ({
   canUndo: false,
   canRedo: false,
   hasSelection: false,
+  selectionSize: null,
 
-  setTool: (id) => set({ activeToolId: id }),
+  setTool: (id) =>
+    set((s) =>
+      id === s.activeToolId
+        ? {}
+        : { activeToolId: id, previousToolId: s.activeToolId },
+    ),
   setColor1: (c) => set({ color1: c }),
   setColor2: (c) => set({ color2: c }),
   swapColors: () => set((s) => ({ color1: s.color2, color2: s.color1 })),
@@ -102,6 +112,7 @@ export const usePaintStore = create<PaintState>((set) => ({
       canRedo: s.canRedo,
       isDirty: s.isDirty,
       hasSelection: s.hasSelection,
+      selectionSize: s.selectionSize,
       // The engine owns the document dimensions (they change on Open/Resize/
       // Crop/undo); mirror them here so CSS sizing and the status bar follow.
       imageSize: { w: s.width, h: s.height },

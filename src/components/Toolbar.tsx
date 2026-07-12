@@ -142,17 +142,29 @@ export function Toolbar() {
       <ToolGroup tools={DRAW_TOOLS} />
       <Divider />
       <ToolGroup tools={SHAPE_TOOLS} />
-      <Divider />
 
       {/* Contextual options: text styling for the Text tool, the discrete size
-          picker for shapes, else the continuous pencil/brush slider. */}
+          picker for shapes, the continuous slider for freehand strokes — and
+          nothing for tools with no size (select/lasso/fill/eyedropper), so the
+          bar never shows a control that does nothing. */}
       {activeToolId === "text" ? (
-        <TextOptions />
+        <>
+          <Divider />
+          <TextOptions />
+        </>
       ) : isShapeTool(activeToolId) ? (
-        <ShapeSizePicker />
-      ) : (
-        <SizeSlider />
-      )}
+        <>
+          <Divider />
+          <ShapeSizePicker />
+        </>
+      ) : activeToolId === "pencil" ||
+        activeToolId === "brush" ||
+        activeToolId === "eraser" ? (
+        <>
+          <Divider />
+          <SizeSlider />
+        </>
+      ) : null}
 
       <Divider />
 

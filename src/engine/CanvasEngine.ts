@@ -11,6 +11,7 @@ export type EngineChange = {
   width: number;
   height: number;
   hasSelection: boolean;
+  selectionSize: { w: number; h: number } | null; // for the status bar
 };
 
 // The imperative core. Owns the three stacked <canvas> contexts, the commit
@@ -97,6 +98,9 @@ export class CanvasEngine {
       width: this.width,
       height: this.height,
       hasSelection: this.selection != null || this.floatCanvas != null,
+      selectionSize: this.selection
+        ? { w: this.selection.w, h: this.selection.h }
+        : null,
     });
   }
 
@@ -252,6 +256,24 @@ export class CanvasEngine {
     this.emit();
   }
 
+  // Grow or crop the canvas to exact pixel dimensions, anchored top-left, with
+  // newly exposed area painted white — Paint's drag-handle resize. No scaling:
+  // that's resizeImage below.
+  setCanvasSize(width: number, height: number): void {
+    if (width === this.width && height === this.height) return;
+    this.stampFloatOnly();
+    const src = this.copyBase();
+    this.applySize(width, height);
+    this.fillBase("#ffffff");
+    this.base.drawImage(src, 0, 0);
+    this.clearOverlay();
+    this.setSelection(null);
+    this.clearSelectionLayer();
+    this.history.push(this.readBase());
+    this.dirty = true;
+    this.emit();
+  }
+
   // Scale the whole image to a new size (Image → Resize). `smooth` picks
   // bilinear resampling (photos) vs nearest-neighbor (pixel art).
   resizeImage(width: number, height: number, smooth = true): void {
@@ -308,6 +330,23 @@ export class CanvasEngine {
     this.transformInPlace(this.height, this.width, (ctx, src) => {
       ctx.translate(this.width, 0); // new width == old height
       ctx.rotate(Math.PI / 2);
+      ctx.drawImage(src, 0, 0);
+    });
+  }
+
+  // Rotate 90° counter-clockwise; swaps width and height.
+  rotate270(): void {
+    this.transformInPlace(this.height, this.width, (ctx, src) => {
+      ctx.translate(0, this.height); // new height == old width
+      ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(src, 0, 0);
+    });
+  }
+
+  rotate180(): void {
+    this.transformInPlace(this.width, this.height, (ctx, src) => {
+      ctx.translate(this.width, this.height);
+      ctx.rotate(Math.PI);
       ctx.drawImage(src, 0, 0);
     });
   }

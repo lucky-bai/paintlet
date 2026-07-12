@@ -1,4 +1,5 @@
 import type { Point, ToolId } from "../engine/types";
+import { oddStrokeOffset, roundPoint } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
 // Shared base for the freehand strokes (pencil, brush, eraser). The whole stroke
@@ -55,13 +56,25 @@ export abstract class FreehandTool implements Tool {
 
   private segment(from: Point, to: Point, ctx: ToolContext): void {
     const o = ctx.overlay;
+    o.save();
+    // Hard-edged strokes snap to the pixel grid (with the odd-width half-pixel
+    // shift) so their committed width is exact; smooth strokes stay free.
+    let a = from;
+    let b = to;
+    if (this.crisp) {
+      const off = oddStrokeOffset(ctx.size);
+      o.translate(off, off);
+      a = roundPoint(from);
+      b = roundPoint(to);
+    }
     o.strokeStyle = this.color;
     o.lineWidth = ctx.size;
     o.lineCap = this.lineCap;
     o.lineJoin = "round";
     o.beginPath();
-    o.moveTo(from.x, from.y);
-    o.lineTo(to.x, to.y);
+    o.moveTo(a.x, a.y);
+    o.lineTo(b.x, b.y);
     o.stroke();
+    o.restore();
   }
 }

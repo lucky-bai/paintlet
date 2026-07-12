@@ -1,5 +1,6 @@
 import { ask } from "@tauri-apps/plugin-dialog";
 import { engine, usePaintStore } from "./state/store";
+import { stageHooks } from "./state/stageHooks";
 import { STAGE_PADDING, viewport } from "./state/viewport";
 import { openImage, saveImage } from "./io/fileIO";
 import { copySelection, cutSelection, pasteClipboard } from "./io/clipboard";
@@ -22,7 +23,10 @@ function editableFocused(): boolean {
 }
 
 // — File —
+// Every entry point that exports or replaces the document commits a pending
+// text edit first — typed-but-unplaced text must never be silently dropped.
 export async function newDocument(): Promise<void> {
+  stageHooks.flushTextEdit?.();
   if (usePaintStore.getState().isDirty) {
     const ok = await ask("Discard the current drawing?", {
       title: "New Image",
@@ -34,24 +38,44 @@ export async function newDocument(): Promise<void> {
   usePaintStore.getState().setFilePath(null);
 }
 
-export function openFile(): void {
+export async function openFile(): Promise<void> {
+  stageHooks.flushTextEdit?.();
+  if (usePaintStore.getState().isDirty) {
+    const ok = await ask("Discard the current drawing?", {
+      title: "Open Image",
+      kind: "warning",
+    });
+    if (!ok) return;
+  }
   void openImage();
 }
 export function saveFile(): void {
+  stageHooks.flushTextEdit?.();
   void saveImage(false);
 }
 export function saveFileAs(): void {
+  stageHooks.flushTextEdit?.();
   void saveImage(true);
 }
 
 // — Edit —
+// Undo/redo first cancel any in-progress tool gesture (a half-built polygon or
+// curve) so its rubber-band preview can't linger over the restored pixels.
 export function undo(): void {
-  if (editableFocused()) document.execCommand("undo");
-  else engine.undo();
+  if (editableFocused()) {
+    document.execCommand("undo");
+    return;
+  }
+  stageHooks.cancelToolSession?.();
+  engine.undo();
 }
 export function redo(): void {
-  if (editableFocused()) document.execCommand("redo");
-  else engine.redo();
+  if (editableFocused()) {
+    document.execCommand("redo");
+    return;
+  }
+  stageHooks.cancelToolSession?.();
+  engine.redo();
 }
 export function copy(): void {
   if (editableFocused()) document.execCommand("copy");
@@ -93,6 +117,12 @@ export function flipVertical(): void {
 }
 export function rotateRight(): void {
   engine.rotate90();
+}
+export function rotateLeft(): void {
+  engine.rotate270();
+}
+export function rotate180(): void {
+  engine.rotate180();
 }
 
 // — View —
