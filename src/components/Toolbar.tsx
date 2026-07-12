@@ -11,6 +11,7 @@ type ToolDef = { id: ToolId; icon: IconName; label: string; key: string };
 
 const SELECT_TOOLS: ToolDef[] = [
   { id: "select", icon: "select", label: "Select", key: "S" },
+  { id: "freeSelect", icon: "lasso", label: "Free-form select", key: "W" },
 ];
 
 const DRAW_TOOLS: ToolDef[] = [
@@ -24,6 +25,7 @@ const DRAW_TOOLS: ToolDef[] = [
 
 const SHAPE_TOOLS: ToolDef[] = [
   { id: "line", icon: "line", label: "Line", key: "L" },
+  { id: "curve", icon: "curve", label: "Curve", key: "C" },
   { id: "rectangle", icon: "rectangle", label: "Rectangle", key: "R" },
   {
     id: "roundedRectangle",
@@ -32,6 +34,7 @@ const SHAPE_TOOLS: ToolDef[] = [
     key: "U",
   },
   { id: "ellipse", icon: "ellipse", label: "Ellipse", key: "O" },
+  { id: "polygon", icon: "polygon", label: "Polygon", key: "G" },
 ];
 
 // Shapes draw at one of a few fixed widths (not the continuous pencil slider).

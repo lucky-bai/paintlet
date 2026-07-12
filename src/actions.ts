@@ -1,7 +1,9 @@
 import { ask } from "@tauri-apps/plugin-dialog";
 import { engine, usePaintStore } from "./state/store";
+import { STAGE_PADDING, viewport } from "./state/viewport";
 import { openImage, saveImage } from "./io/fileIO";
 import { copySelection, cutSelection, pasteClipboard } from "./io/clipboard";
+import { clampZoom } from "./lib/zoom";
 
 // App-level commands, shared by the native menu and the keyboard handlers so a
 // shortcut and its menu item always do the exact same thing. Clipboard/edit
@@ -18,10 +20,6 @@ function editableFocused(): boolean {
       el.isContentEditable)
   );
 }
-
-const ZOOM_MIN = 0.25;
-const ZOOM_MAX = 8;
-const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 
 // — File —
 export async function newDocument(): Promise<void> {
@@ -108,4 +106,19 @@ export function zoomOut(): void {
 }
 export function actualSize(): void {
   usePaintStore.getState().setZoom(1);
+}
+
+// Pick the zoom that shows the whole image inside the work area (keeping its
+// padding), like Preview's Zoom to Fit. No-op before the stage mounts.
+export function fitToWindow(): void {
+  const el = viewport.el;
+  const s = usePaintStore.getState();
+  if (!el) return;
+  const availW = el.clientWidth - STAGE_PADDING * 2;
+  const availH = el.clientHeight - STAGE_PADDING * 2;
+  if (availW <= 0 || availH <= 0) return;
+  const fit = Math.min(availW / s.imageSize.w, availH / s.imageSize.h);
+  // Round down to a hundredth so the fitted image never overshoots into
+  // scrollbars from a fractional pixel.
+  s.setZoom(clampZoom(Math.floor(fit * 100) / 100));
 }

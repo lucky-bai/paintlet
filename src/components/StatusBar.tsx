@@ -1,8 +1,5 @@
 import { usePaintStore } from "../state/store";
-
-const ZOOM_MIN = 0.25;
-const ZOOM_MAX = 8;
-const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+import { ZOOM_MAX, ZOOM_MIN, clampZoom } from "../lib/zoom";
 
 // Bottom status bar: cursor coordinates, image dimensions, and a persistent
 // zoom slider + percentage on the right — a signature modern-Paint element.

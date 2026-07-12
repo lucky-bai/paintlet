@@ -13,10 +13,13 @@ export type IconName =
   | "eraser"
   | "eyedropper"
   | "line"
+  | "curve"
   | "rectangle"
   | "roundedRectangle"
   | "ellipse"
+  | "polygon"
   | "select"
+  | "lasso"
   | "swap";
 
 const PATHS: Record<IconName, ReactNode> = {
@@ -75,12 +78,21 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   line: <path d="M5 19 19 5" />,
+  curve: <path d="M4 20C9 6 15 18 20 4" />,
   rectangle: <rect x="3" y="4" width="18" height="16" rx="1.5" />,
   roundedRectangle: <rect x="3" y="4" width="18" height="16" rx="5.5" />,
   ellipse: <circle cx="12" cy="12" r="9" />,
+  polygon: <path d="M12 3l9 6.5-3.5 10.5h-11L3 9.5Z" />,
   // Marquee: a dashed rectangle — the classic "select" cue.
   select: (
     <rect x="3" y="3" width="18" height="18" rx="1" strokeDasharray="3.5 3" />
+  ),
+  // Free-form marquee: a dashed irregular loop.
+  lasso: (
+    <path
+      d="M12 4c5 0 9 2.5 9 6s-4 6-9 6c-3 0-5.5-.8-7.2-2C3.6 13.2 3 12 3 10c0-3.5 4-6 9-6Zm-7 10.5c-1 1.5-1.5 3.5-1.5 5.5"
+      strokeDasharray="3.5 3"
+    />
   ),
   swap: (
     <>

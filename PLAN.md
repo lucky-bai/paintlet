@@ -15,19 +15,19 @@ Where the app stands today, grouped by state.
 ### Working
 
 - **Freehand:** pencil (hard-edged), brush (anti-aliased), eraser. Left button paints Color 1, right button Color 2; the eraser always paints Color 2 (classic Paint). Continuous width slider (1–64 px).
-- **Shapes:** line, rectangle, rounded rectangle, ellipse / circle — hard-edged (aliased) outlines, so a flood fill of the interior reaches the border with no halo. Fixed 1 / 3 / 5 / 8 px widths. Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-drag.
+- **Shapes:** line, curve, rectangle, rounded rectangle, ellipse / circle, polygon — hard-edged (aliased) outlines, so a flood fill of the interior reaches the border with no halo. Fixed 1 / 3 / 5 / 8 px widths. Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-shape. The curve is Paint's three-gesture Bézier (drag the line, then bend it twice); the polygon is multi-click (drag or click each side; double-click or a click on the first vertex closes it).
 - **Flood fill** (bucket) — exact-match scanline fill in a single pass.
 - **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2).
 - **Text** — multi-line editor with font family, size, and bold / italic / underline / strikethrough; typed in Color 1; rasterized on commit and not re-editable afterward.
-- **Selection** — rectangular marquee (**Shift** = square) with marching ants; drag to move (leaves a background-color hole); **Delete** clears it; **Select All** (⌘A).
+- **Selection** — rectangular marquee (**Shift** = square) and free-form lasso, with marching ants along the exact outline; drag inside to move (leaves a background-color hole shaped like the selection); **Delete** clears it; **Select All** (⌘A). Copy/cut/delete on a lasso clip to the outline, not its bounding box.
 - **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
 - **Save / Open** — native dialogs, **PNG (default) and JPEG**; window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
 - **Image ops** — Resize (by pixels or percentage, aspect-locked by default, unlock to stretch, smooth vs nearest resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90°. All undoable across the size change.
 - **Native macOS menu bar** — File / Edit / Image / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All.
 - **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
 - **Colors** — MS Paint palette grid, overlapping Color 1 / Color 2 swatches, swap, and the native macOS color panel for continuous / RGB / hex (`#000`) custom colors.
-- **Zoom** — shortcuts for in / out / reset (⌘+ / ⌘− / ⌘0), plus a status-bar slider + %, 0.25×–8×, crisp `pixelated` scaling.
-- **Tool shortcuts** — `S P B F T E I L R U O` select the tools; `Esc` cancels the current action / deselects.
+- **Zoom & pan** — shortcuts for in / out / reset / fit (⌘+ / ⌘− / ⌘0 / ⌘9), a status-bar slider + %, pinch or ⌘-wheel zoom centered on the cursor, and space-drag / middle-drag panning. 0.25×–8×, crisp `pixelated` scaling.
+- **Tool shortcuts** — `S W P B F T E I L C R U O G` select the tools; `Esc` cancels the current action / deselects.
 - **Status bar** — live cursor coordinates and image dimensions.
 - **Theme** — light / dark following the macOS appearance, switching live.
 - **Window & canvas** — native transparent title bar (traffic lights) with a draggable strip and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
@@ -35,8 +35,7 @@ Where the app stands today, grouped by state.
 
 ### Not yet matching target scope
 
-- **More shapes** — polygon and curve are not built (line, rectangle, rounded rectangle, ellipse / circle are). Both need multi-click / multi-phase interactions rather than a single drag.
-- **Free-form (lasso) selection** — only the rectangular marquee exists.
+- Nothing — the committed feature scope (§7) is fully built.
 
 ### Out of scope (won't build)
 
@@ -383,15 +382,16 @@ engine.snapshot('open');                 // seed history
 - **M3 — Shape & brush tools** · *Done.* Line, rectangle, ellipse (overlay preview); eraser; brush + size slider.
 - **M4 — Pixel tools** · *Done.* Flood fill, eyedropper.
 - **M5 — File I/O** · *Done.* Open + save/save-as PNG **and JPEG**, dirty tracking, window title. Bytes move through a Rust command so any user-chosen path works.
-- **M6 — Zoom** · *Partial.* Zoom slider, ⌘+/−/0, coordinate mapping, status bar done; fit-to-window, wheel/pinch zoom, and pan remain.
-- **M7 — Selection** · *Done.* Rectangular marquee with marching ants; move, delete, select-all, and copy/cut/paste through the system clipboard (internal fallback).
-- **M8 — Polish** · *Partial.* Multi-line styled text, crop, resize, flip H/V, and rotate 90° done; more shapes/formats, fit-to-window zoom, and layers remain.
+- **M6 — Zoom** · *Done.* Zoom slider, ⌘+/−/0, fit-to-window (⌘9), pinch / ⌘-wheel zoom at the cursor, space- or middle-drag pan, coordinate mapping, status bar.
+- **M7 — Selection** · *Done.* Rectangular marquee and free-form lasso with marching ants; move, delete, select-all, and copy/cut/paste through the system clipboard (internal fallback).
+- **M8 — Polish** · *Done.* Multi-line styled text, crop, resize, flip H/V, rotate 90°, polygon and curve shapes, fit-to-window zoom. (Layers stay out of scope.)
 
 ### Keyboard shortcuts (via native menu)
 
 - ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as
 - ⌘Z undo · ⇧⌘Z redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all
-- `B` brush · `P` pencil · `E` eraser · `L` line · `R` rect · `O` ellipse · `F` fill · `I` eyedropper · `Esc` cancel current action
+- ⌘+ / ⌘− / ⌘0 zoom in / out / actual size · ⌘9 fit to window
+- `S` select · `W` free-form select · `P` pencil · `B` brush · `E` eraser · `L` line · `C` curve · `R` rect · `U` rounded rect · `O` ellipse · `G` polygon · `F` fill · `T` text · `I` eyedropper · `Esc` cancel current action
 
 ---
 

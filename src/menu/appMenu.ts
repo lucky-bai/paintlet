@@ -80,6 +80,7 @@ export async function installAppMenu(): Promise<void> {
       await item("Zoom In", undefined, A.zoomIn),
       await item("Zoom Out", undefined, A.zoomOut),
       await item("Actual Size", undefined, A.actualSize),
+      await item("Fit to Window", undefined, A.fitToWindow),
     ],
   });
 

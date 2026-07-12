@@ -16,6 +16,7 @@ import { ResizeDialog } from "./components/dialogs/ResizeDialog";
 // keystroke in the text editor.
 const TOOL_KEYS: Record<string, ToolId> = {
   s: "select",
+  w: "freeSelect",
   p: "pencil",
   b: "brush",
   f: "fill",
@@ -23,9 +24,11 @@ const TOOL_KEYS: Record<string, ToolId> = {
   e: "eraser",
   i: "eyedropper",
   l: "line",
+  c: "curve",
   r: "rectangle",
   u: "roundedRectangle",
   o: "ellipse",
+  g: "polygon",
 };
 
 function App() {
@@ -97,6 +100,9 @@ function App() {
         } else if (e.key === "0") {
           e.preventDefault();
           A.actualSize();
+        } else if (e.key === "9") {
+          e.preventDefault();
+          A.fitToWindow();
         }
         return; // other ⌘-combos belong to the menu
       }
