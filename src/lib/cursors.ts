@@ -43,3 +43,11 @@ export const eraserCursor = svgCursor(
   11,
   "crosshair",
 );
+
+// Brush — a small circle matching its round cap, centered on the click point.
+export const brushCursor = svgCursor(
+  '<circle cx="12" cy="12" r="5"/>',
+  11,
+  11,
+  "crosshair",
+);

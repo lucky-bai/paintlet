@@ -19,7 +19,7 @@ Where the app stands today, grouped by state.
 - **Flood fill** (bucket) — exact-match scanline fill in a single pass.
 - **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2), then returns to the previous tool (classic Paint).
 - **Text** — multi-line editor with font family, size, and bold / italic / underline / strikethrough; typed in Color 1; rasterized on commit and not re-editable afterward.
-- **Selection** — rectangular marquee (**Shift** = square) and free-form lasso, with marching ants along the exact outline; drag inside to move (leaves a background-color hole shaped like the selection); **Delete** clears it; **Select All** (⌘A). Copy/cut/delete on a lasso clip to the outline, not its bounding box.
+- **Selection** — rectangular marquee (**Shift** = square) and free-form lasso, with marching ants along the exact outline; drag inside to move (leaves a background-color hole shaped like the selection); **Delete** clears it; **Select All** (⌘A). Copy/cut/delete on a lasso clip to the outline, not its bounding box. The selection survives switching between the marquee and the lasso.
 - **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
 - **Save / Open** — native dialogs, **PNG (default) and JPEG**; window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
 - **Image ops** — Resize (by pixels or percentage, aspect-locked by default, unlock to stretch, smooth vs nearest resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90° right / left / 180°, and edge/corner drag handles on the canvas that crop or extend it (white fill, dashed preview). All undoable across the size change.
@@ -50,7 +50,8 @@ Where the app stands today, grouped by state.
 - **Build:** Vite + React 18 + TypeScript.
 - **Styling:** Tailwind. macOS-native surfaces (SF Pro / `system-ui`, system control metrics, hairline separators, ~8–10px corners), with full light + dark mode.
 - **State:** Zustand for UI/config state only. **Pixel data never lives in React** — it lives in the imperative engine. This is the single most important rule for performance.
-- **Tauri plugins:** `@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-fs`, later `@tauri-apps/plugin-clipboard-manager`.
+- **Tauri plugins:** `@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-fs`, `@tauri-apps/plugin-clipboard-manager`.
+- **Tests:** Vitest for the pure logic; a Playwright-driven headless-browser e2e smoke (`pnpm test:e2e`) that runs the web build and asserts on real pixels; GitHub Actions runs build → unit → e2e on every PR.
 
 ### Key decisions (defaults chosen; easy to revisit)
 
@@ -68,7 +69,7 @@ Three stacked `<canvas>` elements, same size, absolutely positioned:
 
 1. **Base layer** — the committed image. The source of truth for pixels. Saved to disk.
 2. **Overlay layer** — transparent. Live previews (the line you're dragging, the marquee, brush cursor) render here and are cleared constantly. Nothing here is "real" until committed.
-3. **Selection layer** *(reserved for later)* — floating selection contents + marching ants.
+3. **Selection layer** — floating selection contents + marching ants (rect or lasso outline).
 
 **Commit flow** — the heartbeat of the whole app:
 
@@ -99,49 +100,57 @@ React (chrome + config)  ──►  Zustand (UI state)
 ```
 vibepaint/
 ├─ src-tauri/
-│  ├─ src/main.rs                 # native menu, window, commands
+│  ├─ src/main.rs                 # window setup, read/write-image commands
 │  ├─ capabilities/default.json   # v2 permissions (dialog, fs)
 │  ├─ tauri.conf.json
 │  └─ Cargo.toml
 ├─ src/
 │  ├─ main.tsx
-│  ├─ App.tsx                     # layout shell
+│  ├─ App.tsx                     # layout shell, tool-key shortcuts, close guard
+│  ├─ actions.ts                  # shared commands for menu + keyboard
 │  ├─ components/
-│  │  ├─ Toolbar.tsx              # top toolbar: tools · shapes · size · colors
+│  │  ├─ Toolbar.tsx              # top toolbar: tools · shapes · options · colors
 │  │  ├─ ToolButton.tsx
-│  │  ├─ ToolOptions.tsx          # size slider, per-tool options
-│  │  ├─ ColorPalette.tsx         # palette swatch grid
-│  │  ├─ ColorIndicator.tsx       # Color 1 / Color 2 overlapping swatches
-│  │  ├─ CanvasStage.tsx          # hosts the 3 canvases + pointer handling
-│  │  ├─ StatusBar.tsx            # coords, image size, zoom slider + %
-│  │  └─ dialogs/                 # resize, custom color, etc.
+│  │  ├─ TextOptions.tsx          # font/size/style controls for the text tool
+│  │  ├─ ColorControls.tsx        # Color 1/2 swatches, swap, palette grid
+│  │  ├─ CanvasStage.tsx          # 3 canvases, pointer plumbing, text editor,
+│  │  │                           #   zoom/pan gestures, canvas resize handles
+│  │  ├─ StatusBar.tsx            # coords, image + selection size, zoom slider
+│  │  ├─ TitleBar.tsx             # draggable strip under the traffic lights
+│  │  ├─ Icon.tsx                 # inline SVG icon set
+│  │  └─ dialogs/ResizeDialog.tsx
 │  ├─ engine/
-│  │  ├─ CanvasEngine.ts          # base/overlay contexts, compositing
-│  │  ├─ History.ts              # undo/redo manager (snapshot-based)
-│  │  ├─ coords.ts               # screen↔canvas mapping (zoom/pan/DPR aware)
-│  │  ├─ floodFill.ts
+│  │  ├─ CanvasEngine.ts          # contexts, commit flow, selection, image ops
+│  │  ├─ History.ts               # undo/redo manager (snapshot-based)
+│  │  ├─ coords.ts                # screen↔canvas mapping
+│  │  ├─ floodFill.ts             # scanline exact-match fill
+│  │  ├─ color.ts                 # hex ↔ rgba
 │  │  └─ types.ts
 │  ├─ tools/
-│  │  ├─ Tool.ts                 # the Tool interface (extensibility spine)
-│  │  ├─ PencilTool.ts
-│  │  ├─ BrushTool.ts
-│  │  ├─ EraserTool.ts
-│  │  ├─ LineTool.ts
-│  │  ├─ RectangleTool.ts
-│  │  ├─ EllipseTool.ts
-│  │  ├─ FillTool.ts
-│  │  ├─ EyedropperTool.ts
-│  │  ├─ SelectionTool.ts        # later
-│  │  ├─ TextTool.ts             # later
-│  │  └─ registry.ts             # id → tool instance
-│  ├─ state/store.ts             # zustand
+│  │  ├─ Tool.ts                  # the Tool interface (extensibility spine)
+│  │  ├─ FreehandTool.ts          # shared pencil/brush/eraser stroke logic
+│  │  ├─ PencilTool.ts · BrushTool.ts · EraserTool.ts
+│  │  ├─ LineTool.ts · CurveTool.ts
+│  │  ├─ RectangleTool.ts · RoundedRectangleTool.ts · EllipseTool.ts
+│  │  ├─ PolygonTool.ts
+│  │  ├─ FillTool.ts · EyedropperTool.ts
+│  │  ├─ SelectTool.ts · LassoTool.ts
+│  │  ├─ shapes.ts                # constrain/normalize/pixel-grid helpers
+│  │  └─ registry.ts              # id → tool instance
+│  ├─ state/
+│  │  ├─ store.ts                 # zustand (UI/config state only)
+│  │  ├─ stageHooks.ts            # text-flush + session-cancel escape hatches
+│  │  └─ viewport.ts              # work-area element ref for fit/scroll
 │  ├─ io/
-│  │  ├─ fileIO.ts               # open/save via Tauri
-│  │  └─ clipboard.ts            # later
-│  └─ styles/index.css           # tailwind + theme tokens (light/dark)
+│  │  ├─ fileIO.ts                # open/save via Tauri
+│  │  └─ clipboard.ts             # system clipboard with in-app fallback
+│  ├─ lib/                        # cx, zoom bounds, SVG cursors
+│  └─ styles/index.css            # tailwind + theme tokens (light/dark)
+├─ tests/e2e.mjs                  # headless-browser smoke test
+├─ .github/workflows/ci.yml       # build → unit tests → e2e on every PR
+├─ vitest.config.ts               # unit tests colocated as src/**/*.test.ts
 ├─ index.html
-├─ vite.config.ts
-└─ tailwind.config.js
+└─ vite.config.ts
 ```
 
 ---
@@ -155,9 +164,9 @@ export type MouseButton = 'primary' | 'secondary';
 export type ViewTransform = { zoom: number; panX: number; panY: number };
 
 export type ToolId =
-  | 'pencil' | 'brush' | 'eraser' | 'line'
-  | 'rectangle' | 'ellipse' | 'fill' | 'eyedropper'
-  | 'select' | 'text';            // last two: reserved, not built yet
+  | 'pencil' | 'brush' | 'eraser'
+  | 'line' | 'curve' | 'rectangle' | 'roundedRectangle' | 'ellipse' | 'polygon'
+  | 'fill' | 'eyedropper' | 'select' | 'freeSelect' | 'text';
 ```
 
 The **Tool interface** is the extensibility spine. Every current and future tool implements exactly this — adding a tool means writing one file and registering it.
@@ -171,8 +180,12 @@ export interface ToolContext {
   color1: string;                      // foreground (primary button)
   color2: string;                      // background (secondary button)
   size: number;
+  zoom: number;                        // for screen-relative hit thresholds
   clearPreview(): void;                // wipe the overlay
-  commit(label: string): void;         // overlay → base + push history
+  commit(label: string, crisp?: boolean): void; // overlay → base + history;
+                                       //   crisp hardens AA edges (pencil/shapes)
+  setColor1(c: string): void;          // write-back (eyedropper)
+  setColor2(c: string): void;
 }
 
 export interface PointerInfo {
@@ -187,6 +200,8 @@ export interface Tool {
   onPointerDown(p: PointerInfo, ctx: ToolContext): void;
   onPointerMove(p: PointerInfo, ctx: ToolContext): void;
   onPointerUp(p: PointerInfo, ctx: ToolContext): void;
+  onPointerHover?(p: PointerInfo, ctx: ToolContext): void; // moves w/ no button
+                                       //   (polygon rubber-band between clicks)
   onActivate?(ctx: ToolContext): void;
   onDeactivate?(ctx: ToolContext): void;                 // cleanup on tool switch
   onKeyDown?(e: KeyboardEvent, ctx: ToolContext): void;  // e.g. Esc to cancel
@@ -304,7 +319,7 @@ Toolbar groups, left to right: **undo/redo** · **drawing tools** (pencil, brush
 - **Canvas:** centered on a neutral gray work surface with a soft drop shadow and edge/corner resize handles (as in Win11 Paint). `image-rendering: pixelated` for crisp pixels.
 - **Status bar:** cursor coordinates, image dimensions, selection size, and a **zoom slider + percentage** at the right — the persistent zoom control is a signature modern-Paint element.
 - **Typography & materials:** `system-ui` / SF Pro. Light mode = white/neutral surfaces, hairline separators, rounded corners. **Full dark mode** mirroring the macOS appearance.
-- **Cursors:** per-tool — crosshair (pencil/shapes), small square (brush/eraser), eyedropper (picker), bucket (fill). Each tool declares its own `cursor`.
+- **Cursors:** per-tool — crosshair (pencil/shapes/selection), small circle (brush), small square (eraser), eyedropper (picker), bucket (fill). Each tool declares its own `cursor`; the glyph cursors are inline-SVG data URIs with a white underlay so they read on any pixels.
 - **Avoid (the "unnaturally Windows" traps):** Segoe UI, fake Windows min/max/close buttons, Fluent acrylic, Windows-style tooltips and context menus.
 
 ---
@@ -385,7 +400,8 @@ engine.snapshot('open');                 // seed history
 - **M5 — File I/O** · *Done.* Open + save/save-as PNG **and JPEG**, dirty tracking, window title. Bytes move through a Rust command so any user-chosen path works.
 - **M6 — Zoom** · *Done.* Zoom slider, ⌘+/−/0, fit-to-window (⌘9), pinch / ⌘-wheel zoom at the cursor, space- or middle-drag pan, coordinate mapping, status bar.
 - **M7 — Selection** · *Done.* Rectangular marquee and free-form lasso with marching ants; move, delete, select-all, and copy/cut/paste through the system clipboard (internal fallback).
-- **M8 — Polish** · *Done.* Multi-line styled text, crop, resize, flip H/V, rotate 90°, polygon and curve shapes, fit-to-window zoom. (Layers stay out of scope.)
+- **M8 — Polish** · *Done.* Multi-line styled text, crop, resize, flip H/V, rotate 90° right/left/180°, polygon and curve shapes, fit-to-window zoom, canvas drag-resize handles, per-tool cursors, data-loss guards. (Layers stay out of scope.)
+- **M9 — Tests & CI** · *Done.* Vitest unit suite over the pure logic; a headless-browser e2e smoke driving real pointer/keyboard input and asserting on pixels; GitHub Actions runs build → unit → e2e on every PR.
 
 ### Keyboard shortcuts (via native menu)
 

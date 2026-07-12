@@ -5,7 +5,7 @@ import { viewport } from "../state/viewport";
 import { screenToCanvas } from "../engine/coords";
 import { getTool, isShapeTool } from "../tools/registry";
 import { clampZoom } from "../lib/zoom";
-import type { MouseButton, TextStyle } from "../engine/types";
+import type { MouseButton, TextStyle, ToolId } from "../engine/types";
 import type { PointerInfo, ToolContext } from "../tools/Tool";
 
 // Multi-line spacing factor for the text tool (matches the editor and raster).
@@ -183,14 +183,18 @@ export function CanvasStage() {
 
   // Commit the previous tool's pending state when the active tool changes:
   // freehand/shape cleanup, selection bake-down, and pending-text rasterization.
+  // Exception (matches Win11 Paint): hopping between the marquee and the lasso
+  // keeps the current selection — either tool can move what the other selected,
+  // so skip the deactivate that would bake it down.
   const prevToolRef = useRef(activeToolId);
   useEffect(() => {
     const prev = prevToolRef.current;
     if (prev !== activeToolId) {
+      const isSelect = (id: ToolId) => id === "select" || id === "freeSelect";
       if (prev === "text") {
         if (textEditRef.current) commitText(textEditRef.current);
         setTextEdit(null);
-      } else {
+      } else if (!(isSelect(prev) && isSelect(activeToolId))) {
         getTool(prev)?.onDeactivate?.(makeCtx());
       }
       prevToolRef.current = activeToolId;

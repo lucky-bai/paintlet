@@ -199,6 +199,20 @@ step(
   `onOutline=${antsOn} atBboxCorner=${antsCorner} moved=${moved} holeLeft=${holeLeft}`,
 );
 
+// ── 6b. the selection survives switching between marquee and lasso ────────
+await page.keyboard.press("s");
+await dragTo(700, 100, 780, 160);
+await page.keyboard.press("w"); // marquee → lasso must NOT bake it down
+await page.waitForTimeout(150);
+const keptReadout = await page.getByText("⬚").count();
+const keptAnts = await countPx(2, 700, 98, 80, 6, "alpha");
+await page.keyboard.press("Escape");
+step(
+  "selection survives marquee ↔ lasso switch",
+  keptReadout === 1 && keptAnts > 0,
+  `sizeReadout=${keptReadout} ants=${keptAnts}`,
+);
+
 // ── 7. text: click, type immediately, switch tool → rasterized ────────────
 await page.keyboard.press("t");
 await clickAt(100, 400);
