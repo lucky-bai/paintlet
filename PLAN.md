@@ -15,23 +15,23 @@ Where the app stands today, grouped by state.
 ### Working
 
 - **Freehand:** pencil (hard-edged), brush (anti-aliased), eraser (hard-edged, square-capped, so erased edges flood-fill cleanly). Left button paints Color 1, right button Color 2; the eraser always paints Color 2 (classic Paint). Continuous width slider (1–64 px).
-- **Shapes:** line, curve, rectangle, rounded rectangle, ellipse / circle, polygon — hard-edged (aliased) outlines, so a flood fill of the interior reaches the border with no halo. Fixed 1 / 3 / 5 / 8 px widths, with geometry snapped to the pixel grid (odd widths get the half-pixel shift) so a 1 px stroke commits exactly 1 px. Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-shape. The curve is Paint's three-gesture Bézier (drag the line, then bend it twice); the polygon is multi-click (drag or click each side; double-click or a click on the first vertex closes it).
-- **Flood fill** (bucket) — exact-match scanline fill in a single pass.
-- **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2), then returns to the previous tool (classic Paint).
+- **Shapes:** line, curve, rectangle, rounded rectangle, ellipse / circle, polygon — hard-edged (aliased) outlines, so a flood fill of the interior reaches the border with no halo. Fixed 1 / 3 / 5 / 8 px widths, with geometry snapped to the pixel grid (odd widths get the half-pixel shift) so a 1 px stroke commits exactly 1 px. Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-shape. The curve is Paint's three gestures (drag the line, then pull two bends) with the curve passing *through* the point you drag and previewing under the cursor between gestures; the polygon is multi-click (drag or click each side; double-click or a click on the first vertex closes it).
+- **Flood fill** (bucket) — exact-match scanline fill in a single pass. Hard-edged commits seal the whole stroke footprint (not a 50% cutoff) so a thin curved outline stays connected and a fill can't escape through a one-pixel gap — the classic "fill a circle, everything turns one color" leak.
+- **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2), then returns to the previous tool (classic Paint). Fill and eyedropper use a precise crosshair cursor whose hotspot is the exact sampled/filled pixel.
 - **Text** — multi-line editor with font family, size, and bold / italic / underline / strikethrough; typed in Color 1; rasterized on commit and not re-editable afterward.
-- **Selection** — rectangular marquee (**Shift** = square) and free-form lasso, with marching ants along the exact outline; drag inside to move (leaves a background-color hole shaped like the selection); **Delete** clears it; **Select All** (⌘A). Copy/cut/delete on a lasso clip to the outline, not its bounding box. The selection survives switching between the marquee and the lasso.
+- **Selection** — rectangular marquee (**Shift** = square) and free-form lasso, with marching ants along the exact outline; drag inside to move; eight resize grips scale it (**Shift** keeps the aspect ratio); **Delete** clears it; **Select All** (⌘A). Selections are **transparent**: the background color (Color 2) inside a moved or pasted selection drops out, so it never stamps a solid block over what's underneath. Copy/cut/delete on a lasso clip to the outline, not its bounding box. The selection survives switching between the marquee and the lasso.
 - **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
-- **Save / Open** — native dialogs, **PNG (default) and JPEG**; window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
+- **Save / Open** — an in-app Save dialog names the format explicitly (PNG or JPEG, with a JPEG quality slider) before the native location picker, so the format is never guessed from a typed extension; re-saving a file keeps its format silently. Window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
 - **Image ops** — Resize (by pixels or percentage, aspect-locked by default, unlock to stretch, smooth vs nearest resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90° right / left / 180°, and edge/corner drag handles on the canvas that crop or extend it (white fill, dashed preview). All undoable across the size change.
-- **Native macOS menu bar** — File / Edit / Image / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All.
+- **Native macOS menu bar** — File / Edit / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All. The image operations live under Edit (no separate Image menu), and the system's Dictation / Emoji items are suppressed from Edit.
 - **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
-- **Colors** — MS Paint palette grid, overlapping Color 1 / Color 2 swatches, swap, and the native macOS color panel for continuous / RGB / hex (`#000`) custom colors.
-- **Zoom & pan** — shortcuts for in / out / reset / fit (⌘+ / ⌘− / ⌘0 / ⌘9), a status-bar slider + %, pinch or ⌘-wheel zoom centered on the cursor, and space-drag / middle-drag panning. 0.25×–8×, crisp `pixelated` scaling.
+- **Colors** — MS Paint palette grid, Color 1 / Color 2 swatches, swap, and an **in-app color picker** (saturation/value area + hue slider + hex field) that opens as a popover — no separate system color window. Left-click a palette chip = Color 1, right-click = Color 2.
+- **Zoom & pan** — shortcuts for in / out / reset / fit (⌘+ / ⌘− / ⌘0 / ⌘9), a status-bar slider + %, pinch or ⌘-wheel zoom centered on the cursor, and space-drag / middle-drag panning. The wheel step is small and smooth (delta normalized and clamped, not a single huge jump). 0.25×–8×, crisp `pixelated` scaling.
 - **Tool shortcuts** — `S W P B F T E I L C R U O G` select the tools; `Esc` cancels the current action / deselects.
 - **Status bar** — live cursor coordinates, image dimensions, and the selection's size while one exists.
-- **Guardrails** — File → New/Open confirm before discarding unsaved changes; a pending text edit is committed (never dropped) by Save / New / Open / closing the window; undo cancels an in-progress multi-gesture shape. Per-tool cursors (bucket, dropper, eraser square).
+- **Guardrails** — File → New/Open confirm before discarding unsaved changes; a pending text edit is committed (never dropped) by Save / New / Open / closing the window; undo cancels an in-progress multi-gesture shape. Per-tool cursors: precise crosshairs for fill/eyedropper, a circle for the brush, a square for the eraser, and the resize cursor while dragging a canvas or selection grip.
 - **Theme** — light / dark following the macOS appearance, switching live.
-- **Window & canvas** — native transparent title bar (traffic lights) with a draggable strip and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
+- **Window & canvas** — opens maximized; native transparent title bar (traffic lights) with a draggable strip and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
 - **Toolchain** — pnpm; `pnpm dev` launches the full app.
 
 ### Not yet matching target scope
@@ -109,22 +109,25 @@ vibepaint/
 │  ├─ App.tsx                     # layout shell, tool-key shortcuts, close guard
 │  ├─ actions.ts                  # shared commands for menu + keyboard
 │  ├─ components/
-│  │  ├─ Toolbar.tsx              # top toolbar: tools · shapes · options · colors
+│  │  ├─ Toolbar.tsx              # grouped ribbon: History · Select · Tools ·
+│  │  │                           #   Shapes · Size · Colors, each labeled
 │  │  ├─ ToolButton.tsx
 │  │  ├─ TextOptions.tsx          # font/size/style controls for the text tool
 │  │  ├─ ColorControls.tsx        # Color 1/2 swatches, swap, palette grid
+│  │  ├─ ColorPicker.tsx          # in-app SV/hue/hex picker popover
 │  │  ├─ CanvasStage.tsx          # 3 canvases, pointer plumbing, text editor,
-│  │  │                           #   zoom/pan gestures, canvas resize handles
+│  │  │                           #   zoom/pan gestures, canvas + selection grips
 │  │  ├─ StatusBar.tsx            # coords, image + selection size, zoom slider
 │  │  ├─ TitleBar.tsx             # draggable strip under the traffic lights
 │  │  ├─ Icon.tsx                 # inline SVG icon set
-│  │  └─ dialogs/ResizeDialog.tsx
+│  │  └─ dialogs/                 # ResizeDialog · SaveDialog (format + quality)
 │  ├─ engine/
 │  │  ├─ CanvasEngine.ts          # contexts, commit flow, selection, image ops
 │  │  ├─ History.ts               # undo/redo manager (snapshot-based)
+│  │  ├─ selectionHandles.ts      # resize-grip geometry + cursors
 │  │  ├─ coords.ts                # screen↔canvas mapping
 │  │  ├─ floodFill.ts             # scanline exact-match fill
-│  │  ├─ color.ts                 # hex ↔ rgba
+│  │  ├─ color.ts                 # hex ↔ rgba, hsv ↔ rgb
 │  │  └─ types.ts
 │  ├─ tools/
 │  │  ├─ Tool.ts                  # the Tool interface (extensibility spine)
@@ -314,12 +317,12 @@ Toolbar groups, left to right: **undo/redo** · **drawing tools** (pencil, brush
 ### Visual details
 
 - **Window:** native macOS title bar with traffic lights. Use a unified/transparent toolbar (hidden-title-bar style) so the toolbar sits directly under the traffic lights — the clean modern Mac look. No fake Windows window controls.
-- **Top toolbar:** grouped segments split by hairline dividers. Rounded-rect icon buttons (~28–32px), SF Symbols-style glyphs. Hover = subtle fill; active tool = accent-tint fill using the system accent color. Undo/redo sit at the far left with proper disabled (greyed) states — a signature modern-Paint cue.
-- **Colors:** Color 1 / Color 2 overlapping swatches + a compact palette grid + a `＋` that opens the native macOS color panel (via `<input type="color">`). Left-click a swatch sets **Color 1**; right-click sets **Color 2** (kept from Paint).
+- **Top toolbar:** a grouped ribbon in the Win11 Paint arrangement — **History · Select · Tools · Shapes · Size · Colors** — each a small cluster with a caption underneath, split by hairline dividers. Tools and shapes sit in compact two-row grids rather than one long row. Rounded-rect icon buttons; hover = subtle fill; active tool = accent-tint fill. Undo/redo sit at the far left with proper disabled (greyed) states.
+- **Colors:** Color 1 / Color 2 swatches + a two-row palette grid. Clicking a swatch opens an **in-app color picker** popover — a saturation/value area, a hue slider, and a hex field — entirely inside the window (no separate system color panel). Left-click a palette chip sets **Color 1**; right-click sets **Color 2** (kept from Paint).
 - **Canvas:** centered on a neutral gray work surface with a soft drop shadow and edge/corner resize handles (as in Win11 Paint). `image-rendering: pixelated` for crisp pixels.
 - **Status bar:** cursor coordinates, image dimensions, selection size, and a **zoom slider + percentage** at the right — the persistent zoom control is a signature modern-Paint element.
 - **Typography & materials:** `system-ui` / SF Pro. Light mode = white/neutral surfaces, hairline separators, rounded corners. **Full dark mode** mirroring the macOS appearance.
-- **Cursors:** per-tool — crosshair (pencil/shapes/selection), small circle (brush), small square (eraser), eyedropper (picker), bucket (fill). Each tool declares its own `cursor`; the glyph cursors are inline-SVG data URIs with a white underlay so they read on any pixels.
+- **Cursors:** per-tool — a precise crosshair whose hotspot is the exact target pixel for fill and eyedropper, a small circle (brush), a small square (eraser), and the appropriate resize cursor while dragging a canvas or selection grip. Glyph cursors are inline-SVG data URIs (pixel size = viewBox so the hotspot is exact) with a white underlay so they read on any pixels.
 - **Avoid (the "unnaturally Windows" traps):** Segoe UI, fake Windows min/max/close buttons, Fluent acrylic, Windows-style tooltips and context menus.
 
 ---
@@ -402,6 +405,7 @@ engine.snapshot('open');                 // seed history
 - **M7 — Selection** · *Done.* Rectangular marquee and free-form lasso with marching ants; move, delete, select-all, and copy/cut/paste through the system clipboard (internal fallback).
 - **M8 — Polish** · *Done.* Multi-line styled text, crop, resize, flip H/V, rotate 90° right/left/180°, polygon and curve shapes, fit-to-window zoom, canvas drag-resize handles, per-tool cursors, data-loss guards. (Layers stay out of scope.)
 - **M9 — Tests & CI** · *Done.* Vitest unit suite over the pure logic; a headless-browser e2e smoke driving real pointer/keyboard input and asserting on pixels; GitHub Actions runs build → unit → e2e on every PR.
+- **M10 — Paint-fidelity & UX pass** · *Done.* Flood fill made leak-tight through thin curves; precise crosshair cursors for fill/eyedropper; smooth wheel zoom; canvas + selection resize grips (Shift keeps aspect); transparent selection (background drops out on move/paste); in-app color picker replacing the system panel; Win11-style grouped ribbon with a compact shapes grid; pull-through curve with live preview; Save-format dialog; image operations folded into the Edit menu with the system Dictation/Emoji items suppressed; window opens maximized.
 
 ### Keyboard shortcuts (via native menu)
 

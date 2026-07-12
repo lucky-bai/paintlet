@@ -73,6 +73,17 @@ const countPx = (i, x, y, w, h, mode) =>
 // Drive a menu-only action through the app's own module instance.
 const action = (name) =>
   page.evaluate(async (n) => (await import("/src/actions.ts"))[n](), name);
+// Reset to a blank document without the dirty-guard dialog (the Tauri shim
+// can't answer it), and read a bit of store state.
+const reset = () =>
+  page.evaluate(async () => (await import("/src/state/store.ts")).engine.newDocument(800, 600));
+const storeState = () =>
+  page.evaluate(async () => {
+    const s = (await import("/src/state/store.ts")).usePaintStore.getState();
+    return { selectionSize: s.selectionSize, color1: s.color1 };
+  });
+const setZoom = (z) =>
+  page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setZoom(v), z);
 
 let box = await canvasBox();
 const at = (x, y) => [box.x + x, box.y + y];
@@ -226,6 +237,10 @@ step(
   textPx > 20 && (await page.locator("textarea").count()) === 0,
   `rasterized=${textPx}`,
 );
+// Saving an untitled document now opens the format dialog (the text already
+// flushed before it appeared); dismiss it so it doesn't cover the next steps.
+await page.keyboard.press("Escape");
+await page.waitForTimeout(60);
 
 // ── 8. canvas corner drag-handle grows the canvas; new area is white ──────
 box = await canvasBox();
@@ -257,6 +272,11 @@ const scroll = () =>
     const el = document.querySelector("div.overflow-auto");
     return [el.scrollLeft, el.scrollTop];
   });
+// Zoom well past fit so the canvas overflows the work area and is scrollable
+// (the smooth wheel zoom above is intentionally a small step, not enough on
+// its own), then pan.
+await setZoom(4);
+await page.waitForTimeout(60);
 await page.evaluate(() => {
   const el = document.querySelector("div.overflow-auto");
   el.scrollLeft = 200;
@@ -275,6 +295,105 @@ step(
   fit !== "100%" && parseInt(wheeled) > parseInt(fit) && sl1 - sl0 === 80 && st1 - st0 === 60,
   `fit=${fit} wheel=${wheeled} pan=(${sl1 - sl0},${st1 - st0})`,
 );
+
+// ── 10. flood fill stays inside a thin (1px) oval — no leak, no fringe ────
+await setZoom(1);
+await page.waitForTimeout(60);
+box = await canvasBox();
+await reset();
+const setColor1 = (hex) =>
+  page.evaluate(async (h) => (await import("/src/state/store.ts")).usePaintStore.getState().setColor1(h), hex);
+await page.keyboard.press("o");
+await page.locator('button[title="1px"]').click();
+await dragTo(200, 150, 600, 450);
+await page.waitForTimeout(30);
+await setColor1("#ed1c24");
+await page.keyboard.press("f");
+await clickAt(400, 300);
+await page.waitForTimeout(30);
+const ovalInside = await page.evaluate(() => {
+  const d = document.querySelectorAll("canvas")[0].getContext("2d").getImageData(360, 285, 80, 30).data;
+  let red = 0, other = 0;
+  for (let k = 0; k < d.length; k += 4) {
+    if (d[k] > 180 && d[k + 1] < 80 && d[k + 2] < 80) red++;
+    else if (!(d[k] === 255 && d[k + 1] === 255 && d[k + 2] === 255)) other++;
+  }
+  return { red, other };
+});
+const ovalCornerWhite = await countPx(0, 4, 4, 20, 20, "alpha"); // any non-transparent = still painted white bg → fine; leak would be red
+const cornerRed = await page.evaluate(() => {
+  const d = document.querySelectorAll("canvas")[0].getContext("2d").getImageData(4, 4, 20, 20).data;
+  let red = 0;
+  for (let k = 0; k < d.length; k += 4) if (d[k] > 180 && d[k + 1] < 80 && d[k + 2] < 80) red++;
+  return red;
+});
+step(
+  "flood fill stays inside a 1px oval (no leak through the curve)",
+  ovalInside.red > 2000 && ovalInside.other === 0 && cornerRed === 0,
+  `inside.red=${ovalInside.red} inside.other=${ovalInside.other} cornerRed=${cornerRed}`,
+);
+void ovalCornerWhite;
+
+// ── 11. selection resize grip scales the selection (Shift = keep aspect) ──
+await reset();
+await page.keyboard.press("s");
+await dragTo(100, 100, 300, 200); // 200×100 marquee
+await page.waitForTimeout(60);
+const beforeSel = (await storeState()).selectionSize;
+await dragTo(300, 200, 400, 300, 8); // drag SE grip out by +100,+100
+await page.waitForTimeout(60);
+const afterSel = (await storeState()).selectionSize;
+step(
+  "selection resize grip scales the selection",
+  beforeSel && beforeSel.w === 200 && afterSel && afterSel.w === 300 && afterSel.h === 200,
+  `before=${JSON.stringify(beforeSel)} after=${JSON.stringify(afterSel)}`,
+);
+
+// ── 12. transparent selection: moving doesn't stamp the bg color over content ─
+await page.evaluate(async () => {
+  const { engine } = await import("/src/state/store.ts");
+  engine.newDocument(800, 600);
+  const b = engine.base;
+  b.fillStyle = "#00c000"; b.fillRect(0, 300, 800, 300);
+  b.fillStyle = "#ff0000"; b.fillRect(360, 120, 80, 80);
+  engine.snapshot("setup");
+});
+await page.waitForTimeout(40);
+await page.keyboard.press("s");
+await dragTo(330, 100, 470, 220);
+await page.waitForTimeout(40);
+await dragTo(400, 160, 400, 460);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(60);
+const transp = await page.evaluate(() => {
+  const ctx = document.querySelectorAll("canvas")[0].getContext("2d");
+  const p = (x, y) => ctx.getImageData(x, y, 1, 1).data;
+  const red = p(400, 460), beside = p(345, 450);
+  return {
+    redOk: red[0] > 180 && red[1] < 80 && red[2] < 80,
+    greenBeside: beside[1] > 120 && beside[0] < 120 && beside[2] < 120,
+    beside: [beside[0], beside[1], beside[2]],
+  };
+});
+step(
+  "moving a selection treats bg as transparent (no white block)",
+  transp.redOk && transp.greenBeside,
+  `redUnder=${transp.redOk} greenBeside=${transp.greenBeside} beside=${JSON.stringify(transp.beside)}`,
+);
+
+// ── 13. Save dialog exposes an explicit format dropdown (+ JPEG quality) ──
+await action("saveFileAs");
+await page.waitForTimeout(120);
+const saveFormats = await page.locator("select option").allTextContents();
+await page.locator("select").last().selectOption("jpeg");
+await page.waitForTimeout(50);
+const jpegQuality = await page.locator('input[type="range"]').count();
+step(
+  "save dialog has a format dropdown and JPEG quality",
+  saveFormats.includes("PNG") && saveFormats.includes("JPEG") && jpegQuality >= 1,
+  `formats=${JSON.stringify(saveFormats)} rangeInputs=${jpegQuality}`,
+);
+await page.keyboard.press("Escape");
 
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });
 await browser.close();

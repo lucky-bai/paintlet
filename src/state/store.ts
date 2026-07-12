@@ -28,6 +28,7 @@ interface PaintState {
   filePath: string | null;
   theme: Theme;
   resizeDialogOpen: boolean;
+  saveDialogOpen: boolean;
 
   // — mirrored from the engine (menu/button enablement, title dot) —
   isDirty: boolean;
@@ -49,6 +50,7 @@ interface PaintState {
   setTheme: (t: Theme) => void;
   setFilePath: (p: string | null) => void;
   setResizeDialogOpen: (open: boolean) => void;
+  setSaveDialogOpen: (open: boolean) => void;
   setEngineState: (s: {
     canUndo: boolean;
     canRedo: boolean;
@@ -81,6 +83,7 @@ export const usePaintStore = create<PaintState>((set) => ({
   filePath: null,
   theme: "system",
   resizeDialogOpen: false,
+  saveDialogOpen: false,
 
   isDirty: false,
   canUndo: false,
@@ -95,8 +98,15 @@ export const usePaintStore = create<PaintState>((set) => ({
         : { activeToolId: id, previousToolId: s.activeToolId },
     ),
   setColor1: (c) => set({ color1: c }),
-  setColor2: (c) => set({ color2: c }),
-  swapColors: () => set((s) => ({ color1: s.color2, color2: s.color1 })),
+  setColor2: (c) => {
+    engine.setBgColor(c); // keep the transparent-selection / hole-fill key in sync
+    set({ color2: c });
+  },
+  swapColors: () =>
+    set((s) => {
+      engine.setBgColor(s.color1);
+      return { color1: s.color2, color2: s.color1 };
+    }),
   setBrushSize: (n) => set({ brushSize: n }),
   setShapeSize: (n) => set({ shapeSize: n }),
   setTextStyle: (patch) =>
@@ -106,6 +116,7 @@ export const usePaintStore = create<PaintState>((set) => ({
   setTheme: (t) => set({ theme: t }),
   setFilePath: (p) => set({ filePath: p }),
   setResizeDialogOpen: (open) => set({ resizeDialogOpen: open }),
+  setSaveDialogOpen: (open) => set({ saveDialogOpen: open }),
   setEngineState: (s) =>
     set({
       canUndo: s.canUndo,

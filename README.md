@@ -7,17 +7,17 @@ Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The na
 ## Features
 
 - Freehand tools: **pencil** (hard-edged), **brush** (anti-aliased), **eraser** (hard, square) — left button paints Color 1, right button Color 2, continuous width slider.
-- Shapes: **line, curve, rectangle, rounded rectangle, ellipse, polygon** at fixed 1/3/5/8 px widths, pixel-grid aligned so a 1 px stroke is exactly 1 px. **Shift** constrains to 45°/square/circle, **Esc** cancels. The curve is Paint's three-gesture Bézier; the polygon is multi-click with a rubber-band preview.
-- **Flood fill** (bucket) and **eyedropper** — the pencil and shapes render hard-edged, so fills reach their borders with no anti-aliased halo; the eyedropper returns to the previous tool after picking.
+- Shapes: **line, curve, rectangle, rounded rectangle, ellipse, polygon** at fixed 1/3/5/8 px widths, pixel-grid aligned so a 1 px stroke is exactly 1 px. **Shift** constrains to 45°/square/circle, **Esc** cancels. The curve takes Paint's three gestures — drag the line, then pull two bends — with the curve tracking the cursor and previewing between gestures; the polygon is multi-click with a rubber-band preview.
+- **Flood fill** (bucket) and **eyedropper** — the pencil and shapes render hard-edged and seal their whole footprint, so a fill reaches the border and can't leak through a one-pixel gap in a thin curve. Fill and eyedropper carry a precise crosshair cursor targeting the exact pixel; the eyedropper returns to the previous tool after picking.
 - **Text** — multi-line editor with font family, size, and bold/italic/underline/strikethrough; rasterized on commit. Pending text is committed (never dropped) by Save/New/Open/close.
-- **Selection** — rectangular marquee and **free-form lasso** with marching ants along the exact outline; drag to move (leaves a selection-shaped hole), **Delete** clears, ⌘A selects all, and the selection survives switching between the two select tools.
+- **Selection** — rectangular marquee and **free-form lasso** with marching ants along the exact outline; drag to move, **eight grips to resize** (Shift keeps the aspect ratio), **Delete** clears, ⌘A selects all, and the selection survives switching between the two select tools. Selections are **transparent** — the background color drops out when moving or pasting, so a selection never stamps a solid block over what's underneath.
 - **Copy / Cut / Paste** (⌘C/⌘X/⌘V) through the system clipboard; paste drops in a floating selection and grows the canvas if needed.
-- **Save / Open** as **PNG or JPEG** via native dialogs; the title bar tracks the file and unsaved changes, and New/Open/close confirm before discarding them.
+- **Save / Open** — an in-app **Save dialog picks the format explicitly** (PNG or JPEG, with a JPEG quality slider) before the native location panel, so the format is never a guess; the title bar tracks the file and unsaved changes, and New/Open/close confirm before discarding them.
 - **Image ops** — resize by pixels or percent (aspect-lock, smooth/nearest resampling), crop to selection, flip H/V, rotate 90° right/left/180°, plus **drag handles on the canvas edge** to crop or extend it — all undoable.
-- **Zoom & pan** — 0.25×–8× with crisp `pixelated` scaling: ⌘+/⌘−/⌘0, **⌘9 fit to window**, pinch or ⌘-wheel zoom centered on the cursor, space-drag or middle-drag panning, and a status-bar slider.
+- **Zoom & pan** — 0.25×–8× with crisp `pixelated` scaling: ⌘+/⌘−/⌘0, **⌘9 fit to window**, pinch or ⌘-wheel zoom (smooth, normalized steps) centered on the cursor, space-drag or middle-drag panning, and a status-bar slider.
 - **Undo / redo** (⌘Z/⇧⌘Z) backed by a dimension-aware snapshot history that spans resizes and crops.
-- **Native macOS menu bar** (File/Edit/Image/View) with ⌘-shortcuts, single-key tool shortcuts, per-tool cursors, MS Paint color palette + the native color panel, and a status bar with live coordinates, image and selection size.
-- **Light / dark** theme following the macOS appearance.
+- **Native macOS menu bar** (File/Edit/View, with the image operations under Edit) with ⌘-shortcuts and single-key tool shortcuts, a Win11-style grouped ribbon with a compact shapes grid, an in-app color picker, MS Paint palette, and a status bar with live coordinates, image and selection size.
+- **Light / dark** theme following the macOS appearance; the window opens maximized.
 
 Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
 

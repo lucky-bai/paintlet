@@ -5,8 +5,20 @@ import { viewport } from "../state/viewport";
 import { screenToCanvas } from "../engine/coords";
 import { getTool, isShapeTool } from "../tools/registry";
 import { clampZoom } from "../lib/zoom";
-import type { MouseButton, TextStyle, ToolId } from "../engine/types";
+import { HANDLE_CURSOR, selectionHandles } from "../engine/selectionHandles";
+import type { MouseButton, Point, Rect, TextStyle, ToolId } from "../engine/types";
 import type { PointerInfo, ToolContext } from "../tools/Tool";
+
+// The resize-grip cursor under a point on a selection, or null. Mirrors
+// SelectTool.hitHandle so the pointer telegraphs a grab before the drag.
+function handleCursorAt(p: Point, r: Rect, zoom: number): string | null {
+  const tol = 6 / zoom;
+  for (const h of selectionHandles(r)) {
+    if (Math.abs(p.x - h.x) <= tol && Math.abs(p.y - h.y) <= tol)
+      return HANDLE_CURSOR[h.id];
+  }
+  return null;
+}
 
 // Multi-line spacing factor for the text tool (matches the editor and raster).
 const LINE_HEIGHT = 1.2;
@@ -62,6 +74,14 @@ export function CanvasStage() {
     sx: number;
     sy: number;
   } | null>(null);
+  // Cursor to force on the whole work area while a canvas-resize handle is being
+  // dragged (pointer capture otherwise reverts it to the tool cursor once the
+  // pointer leaves the little grip).
+  const [canvasResizeCursor, setCanvasResizeCursor] = useState<string | null>(
+    null,
+  );
+  // Cursor when hovering a selection resize grip (before the drag begins).
+  const [handleCursor, setHandleCursor] = useState<string | null>(null);
 
   const { w, h } = usePaintStore((s) => s.imageSize);
   const zoom = usePaintStore((s) => s.view.zoom);
@@ -214,7 +234,11 @@ export function CanvasStage() {
     let offset = 0;
     const loop = () => {
       offset = (offset + 0.5) % 8;
-      engine.renderSelection(offset);
+      const s = usePaintStore.getState();
+      // Resize grips only for the rectangular select tool (the lasso just
+      // moves; switch to Select to resize a free-form selection).
+      const showHandles = s.activeToolId === "select";
+      engine.renderSelection(offset, s.view.zoom, showHandles);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -250,8 +274,16 @@ export function CanvasStage() {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return; // plain scroll keeps scrolling
       e.preventDefault();
+      // Normalize the delta: mouse wheels report deltaMode 1 (lines) or big
+      // pixel steps (~100/notch); a trackpad pinch reports small pixel deltas.
+      // Convert lines/pages to px, then clamp so one hard notch can't leap the
+      // whole zoom range, and use a gentle factor so each step is modest.
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) dy *= 16; // lines → px
+      else if (e.deltaMode === 2) dy *= el.clientHeight; // pages → px
+      dy = Math.max(-48, Math.min(48, dy));
       const cur = usePaintStore.getState().view.zoom;
-      zoomAt(e.clientX, e.clientY, cur * Math.exp(-e.deltaY * 0.01));
+      zoomAt(e.clientX, e.clientY, cur * Math.exp(-dy * 0.0055));
     };
 
     // GestureEvent is WebKit-only and untyped; e.scale is relative to the
@@ -381,12 +413,14 @@ export function CanvasStage() {
           : Math.max(1, Math.round(d.startH + (e.clientY - d.sy) / z)),
     };
   };
+  const axisCursor = { x: "ew-resize", y: "ns-resize", xy: "nwse-resize" } as const;
   const onHandleDown = (axis: "x" | "y" | "xy") => (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     resizeDrag.current = { axis, startW: w, startH: h, sx: e.clientX, sy: e.clientY };
     setResizePreview({ w, h });
+    setCanvasResizeCursor(axisCursor[axis]);
   };
   const onHandleMove = (e: React.PointerEvent) => {
     if (!resizeDrag.current) return;
@@ -400,6 +434,7 @@ export function CanvasStage() {
     const t = resizeTarget(e);
     resizeDrag.current = null;
     setResizePreview(null);
+    setCanvasResizeCursor(null);
     if (t.w !== d.startW || t.h !== d.startH) engine.setCanvasSize(t.w, t.h);
   };
 
@@ -466,6 +501,15 @@ export function CanvasStage() {
       .setCursorPos(screenToCanvas(e.clientX, e.clientY, overlayRef.current!));
     const tool = getTool(activeToolId);
     if (!drawing.current) {
+      // Telegraph a selection resize grip under the pointer (Select tool only).
+      if (activeToolId === "select" && engine.selection) {
+        const pt = screenToCanvas(e.clientX, e.clientY, overlayRef.current!);
+        setHandleCursor(
+          handleCursorAt(pt, engine.selection, usePaintStore.getState().view.zoom),
+        );
+      } else if (handleCursor !== null) {
+        setHandleCursor(null);
+      }
       // Multi-click tools (polygon) rubber-band between clicks.
       tool?.onPointerHover?.(infoOf(e), makeCtx());
       return;
@@ -489,12 +533,16 @@ export function CanvasStage() {
     }
   };
 
+  const toolCursor =
+    getTool(activeToolId)?.cursor ??
+    (activeToolId === "text" ? "text" : "default");
   const cursor = panning
     ? "grabbing"
-    : spaceHeld
-      ? "grab"
-      : (getTool(activeToolId)?.cursor ??
-        (activeToolId === "text" ? "text" : "default"));
+    : canvasResizeCursor
+      ? canvasResizeCursor
+      : spaceHeld
+        ? "grab"
+        : (handleCursor ?? toolCursor);
   const cssSize = { width: w * zoom, height: h * zoom };
   const box = textEdit ? measureBox(textEdit.value, textStyle) : null;
   const lineHeightPx = Math.round(textStyle.fontSize * LINE_HEIGHT) * zoom;
@@ -503,7 +551,11 @@ export function CanvasStage() {
     <div
       ref={containerRef}
       className="relative flex-1 overflow-auto bg-work"
-      style={{ cursor: panning ? "grabbing" : spaceHeld ? "grab" : undefined }}
+      style={{
+        cursor:
+          canvasResizeCursor ??
+          (panning ? "grabbing" : spaceHeld ? "grab" : undefined),
+      }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDownCapture={onPanPointerDown}
       onPointerMoveCapture={onPanPointerMove}
