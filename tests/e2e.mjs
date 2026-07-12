@@ -395,6 +395,54 @@ step(
 );
 await page.keyboard.press("Escape");
 
+// ── 14. brush cursor scales with the painted size (size × zoom) ───────────
+await reset();
+const setBrushSize = (n) =>
+  page.evaluate(
+    async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setBrushSize(v),
+    n,
+  );
+// Read the applied inline cursor, not the computed one: headless Chromium can't
+// rasterize a data-URI cursor image so it reports `auto` for those from
+// getComputedStyle, but the inline style still carries the real url(...) string.
+const overlayCursor = () =>
+  page.locator("canvas").nth(1).evaluate((el) => el.style.cursor);
+const setTool = (id) =>
+  page.evaluate(
+    async (t) => (await import("/src/state/store.ts")).usePaintStore.getState().setTool(t),
+    id,
+  );
+await setTool("brush"); // via store: robust to focus left in a prior field
+await setBrushSize(4);
+await page.waitForTimeout(30);
+const smallCur = await overlayCursor();
+await setBrushSize(48);
+await page.waitForTimeout(30);
+const bigCur = await overlayCursor();
+step(
+  "brush cursor scales with size",
+  smallCur.startsWith("url(") && bigCur.startsWith("url(") && smallCur !== bigCur,
+  `small="${smallCur.slice(0, 16)}" big="${bigCur.slice(0, 16)}" differ=${smallCur !== bigCur}`,
+);
+
+// ── 15. hovering inside a selection telegraphs a move ─────────────────────
+await reset();
+await page.keyboard.press("s");
+await dragTo(120, 120, 320, 240);
+await page.waitForTimeout(40);
+await page.mouse.move(...at(220, 180)); // inside the marquee, no button held
+await page.waitForTimeout(40);
+const insideCur = await overlayCursor();
+await page.keyboard.press("Escape");
+step("move cursor shows inside a selection", insideCur === "move", `cursor=${insideCur}`);
+
+// ── 16. status bar surfaces a per-tool usage hint (curve) ─────────────────
+await page.keyboard.press("c");
+await page.waitForTimeout(30);
+const curveHint = await page.getByText(/drag twice to bend/i).count();
+await page.keyboard.press("p");
+step("status bar shows a per-tool hint (curve)", curveHint === 1, `hintShown=${curveHint}`);
+
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });
 await browser.close();
 await server.close();

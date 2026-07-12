@@ -37,7 +37,11 @@ export function ColorControls() {
   const Swatch = ({ which }: { which: "color1" | "color2" }) => (
     <button
       type="button"
-      title={which === "color1" ? "Color 1 (edit)" : "Color 2 (edit)"}
+      title={
+        which === "color1"
+          ? "Color 1 (foreground) — click to edit"
+          : "Color 2 (background) — click to edit"
+      }
       onClick={() => setEditing((e) => (e === which ? null : which))}
       className={cx(
         "h-8 w-8 rounded-md border shadow-sm",
@@ -71,7 +75,7 @@ export function ColorControls() {
           <button
             key={c}
             type="button"
-            title={c}
+            title={`${c} — click for Color 1, right-click for Color 2`}
             onClick={() => setColor1(c)}
             onContextMenu={(e) => {
               e.preventDefault();

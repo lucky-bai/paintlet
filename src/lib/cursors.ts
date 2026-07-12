@@ -63,3 +63,30 @@ export const brushCursor = svgCursor(
   12,
   "crosshair",
 );
+
+// A brush/eraser cursor whose outline matches the size actually painted on
+// screen (image px × zoom), so the pointer telegraphs coverage instead of a
+// fixed dot that lies about a fat brush. Diameter is clamped to a grabbable,
+// browser-supported range (very large cursors are silently dropped by the OS);
+// the hotspot stays centered. A round outline suits the brush's round cap, a
+// square one the eraser's square cap.
+export function sizedCursor(
+  diameter: number,
+  shape: "circle" | "square",
+): string {
+  const d = Math.max(6, Math.min(128, Math.round(diameter)));
+  const pad = 3; // room for the white underlay stroke, so the edge isn't clipped
+  const size = d + pad * 2;
+  const c = size / 2; // center = hotspot
+  const glyph =
+    shape === "circle"
+      ? `<circle cx="${c}" cy="${c}" r="${d / 2}"/>`
+      : `<rect x="${pad}" y="${pad}" width="${d}" height="${d}"/>`;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" ` +
+    `fill="none" stroke-linecap="round" stroke-linejoin="round">` +
+    `<g stroke="#ffffff" stroke-width="3">${glyph}</g>` +
+    `<g stroke="#000000" stroke-width="1">${glyph}</g>` +
+    `</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${c} ${c}, crosshair`;
+}

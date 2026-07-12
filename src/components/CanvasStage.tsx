@@ -5,6 +5,7 @@ import { viewport } from "../state/viewport";
 import { screenToCanvas } from "../engine/coords";
 import { getTool, isShapeTool } from "../tools/registry";
 import { clampZoom } from "../lib/zoom";
+import { sizedCursor } from "../lib/cursors";
 import { HANDLE_CURSOR, selectionHandles } from "../engine/selectionHandles";
 import type { MouseButton, Point, Rect, TextStyle, ToolId } from "../engine/types";
 import type { PointerInfo, ToolContext } from "../tools/Tool";
@@ -86,6 +87,7 @@ export function CanvasStage() {
   const { w, h } = usePaintStore((s) => s.imageSize);
   const zoom = usePaintStore((s) => s.view.zoom);
   const activeToolId = usePaintStore((s) => s.activeToolId);
+  const brushSize = usePaintStore((s) => s.brushSize);
   const color1 = usePaintStore((s) => s.color1);
   const textStyle = usePaintStore((s) => s.textStyle);
   const hasSelection = usePaintStore((s) => s.hasSelection);
@@ -244,6 +246,14 @@ export function CanvasStage() {
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [hasSelection]);
+
+  // The hover cursor (a resize grip or "move") only makes sense while a select
+  // tool has something selected. Clear it on tool change or when the selection
+  // goes away, so it can't linger over the next tool until the pointer moves.
+  useEffect(() => {
+    const isSelect = activeToolId === "select" || activeToolId === "freeSelect";
+    if (!isSelect || !hasSelection) setHandleCursor(null);
+  }, [activeToolId, hasSelection]);
 
   // Zoom gestures on the work area: ⌘/Ctrl-wheel (and Chromium's synthesized
   // ctrl-wheel for pinches) plus WebKit's native gesture events, which is what
@@ -501,11 +511,21 @@ export function CanvasStage() {
       .setCursorPos(screenToCanvas(e.clientX, e.clientY, overlayRef.current!));
     const tool = getTool(activeToolId);
     if (!drawing.current) {
-      // Telegraph a selection resize grip under the pointer (Select tool only).
-      if (activeToolId === "select" && engine.selection) {
+      // Telegraph what a press would do over a selection: a resize grip (rect
+      // Select tool only) or, inside the selection body, a move. Everywhere
+      // else the tool's own cursor shows.
+      if (
+        (activeToolId === "select" || activeToolId === "freeSelect") &&
+        engine.hasSelectionOrFloat()
+      ) {
         const pt = screenToCanvas(e.clientX, e.clientY, overlayRef.current!);
+        const z = usePaintStore.getState().view.zoom;
+        const grip =
+          activeToolId === "select" && engine.selection
+            ? handleCursorAt(pt, engine.selection, z)
+            : null;
         setHandleCursor(
-          handleCursorAt(pt, engine.selection, usePaintStore.getState().view.zoom),
+          grip ?? (engine.isInsideSelection(pt) ? "move" : null),
         );
       } else if (handleCursor !== null) {
         setHandleCursor(null);
@@ -533,9 +553,16 @@ export function CanvasStage() {
     }
   };
 
+  // The brush/eraser cursor tracks the painted size (image px × zoom) so it
+  // reads as coverage, not a fixed dot; every other tool keeps its static
+  // cursor (precise crosshair, etc.).
   const toolCursor =
-    getTool(activeToolId)?.cursor ??
-    (activeToolId === "text" ? "text" : "default");
+    activeToolId === "brush"
+      ? sizedCursor(brushSize * zoom, "circle")
+      : activeToolId === "eraser"
+        ? sizedCursor(brushSize * zoom, "square")
+        : (getTool(activeToolId)?.cursor ??
+          (activeToolId === "text" ? "text" : "default"));
   const cursor = panning
     ? "grabbing"
     : canvasResizeCursor

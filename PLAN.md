@@ -406,6 +406,7 @@ engine.snapshot('open');                 // seed history
 - **M8 — Polish** · *Done.* Multi-line styled text, crop, resize, flip H/V, rotate 90° right/left/180°, polygon and curve shapes, fit-to-window zoom, canvas drag-resize handles, per-tool cursors, data-loss guards. (Layers stay out of scope.)
 - **M9 — Tests & CI** · *Done.* Vitest unit suite over the pure logic; a headless-browser e2e smoke driving real pointer/keyboard input and asserting on pixels; GitHub Actions runs build → unit → e2e on every PR.
 - **M10 — Paint-fidelity & UX pass** · *Done.* Flood fill made leak-tight through thin curves; precise crosshair cursors for fill/eyedropper; smooth wheel zoom; canvas + selection resize grips (Shift keeps aspect); transparent selection (background drops out on move/paste); in-app color picker replacing the system panel; Win11-style grouped ribbon with a compact shapes grid; pull-through curve with live preview; Save-format dialog; image operations folded into the Edit menu with the system Dictation/Emoji items suppressed; window opens maximized.
+- **M11 — UX audit & discoverability** · *Done.* Full audit of Windows/macOS expectations and implementation clarity (§12). Fixed: per-tool usage hints in the status bar (the multi-gesture curve, multi-click polygon, and selection tools are no longer a guessing game); size-aware brush/eraser cursors that show real coverage; a `move` cursor inside a selection body (and a fix for the hover cursor lingering after the selection or tool changed); clearer active-tool state (filled + ring, consistent with the size picker) and keyboard focus rings; and color-affordance tooltips (which slot a palette click fills, left vs right).
 
 ### Keyboard shortcuts (via native menu)
 
@@ -432,3 +433,40 @@ npm run tauri dev
 ```
 
 > Scaffold gives React 19 + Tailwind v4 (CSS-first config; no `tailwind.config.js` unless you want one). Default new-canvas size: **800 × 600**. Freehand strokes (pencil/brush) **accumulate on the overlay and commit once on pointer-up** — one stroke = one undo step, base untouched mid-stroke.
+
+---
+
+## 12. UX audit
+
+A pass over the whole app for anything confusing, off-convention for a Windows or macOS user, not best practice, or where the implementation itself reads as unclear. Each finding carries two 0–10 ratings: **Severity** — how much it hurts a user (0 = cosmetic, 10 = blocking) — and **Confidence** — how sure this is a real issue worth changing (0 = a hunch, 10 = certain). Findings above the confidence bar were fixed in this pass; the rest are recorded with the reason they were left, so the decision is explicit rather than forgotten.
+
+### Fixed
+
+| Area | Finding | Sev | Conf | Fix |
+|---|---|---|---|---|
+| Curve / polygon / select / text | The multi-gesture curve, multi-click polygon, and move/resize selection interactions are genuinely unguessable — even Windows Paint's curve confuses people, and there was no on-screen cue. | 5 | 8 | A concise usage hint per tool in the status bar (e.g. curve → "Drag to draw a line, then drag twice to bend it · Esc cancels"). |
+| Brush / eraser cursor | A fixed small dot regardless of the size slider — a 48 px brush showed a tiny cursor, lying about coverage. | 4 | 7 | The brush (round) and eraser (square) cursors now match the painted size on screen (size × zoom), clamped to a grabbable, browser-supported range. |
+| Selection | Hovering inside a selection gave no hint that a press would move it (cursor stayed a crosshair). | 4 | 7 | A `move` cursor over the selection body; resize grips still telegraph on the rectangular Select tool. |
+| Selection (bug) | The hover cursor (grip / `move`) lingered after the selection was cleared or the tool changed, until the pointer next moved over the canvas. | 3 | 9 | Cleared reactively on tool change and when the selection goes away. |
+| Toolbar | The active tool used a faint 15%-tint that read weakly (especially in dark mode) and was inconsistent with the shape-size buttons, which fill with the accent. | 4 | 6 | Clearer active state — accent fill plus an inset ring — consistent across tool and size buttons. |
+| Accessibility | No visible keyboard-focus indicator on the icon buttons. | 4 | 8 | `:focus-visible` rings on the tool buttons (invisible to pointer users). |
+| Colors | Left-click = Color 1 / right-click = Color 2 on the palette is the older Paint model and undiscoverable on a Mac; nothing said which slot a click fills. | 4 | 7 | Tooltips spell it out on the palette chips and the two swatches (foreground / background, click to edit). |
+
+### Documented — deferred
+
+| Area | Finding | Sev | Conf | Why deferred |
+|---|---|---|---|---|
+| View menu | Zoom In/Out/Actual/Fit show no shortcut, so ⌘+/−/0/9 are invisible in the one place users look for them. | 5 | 8 | The clean fix — native menu accelerators — risks double-firing with the in-app ⌘-zoom keydown handler and can't be verified headlessly. Wants a real-app pass before changing. |
+| Edit menu | Fourteen flat items (clipboard + selection + all image ops) is a lot to scan. | 3 | 5 | The user explicitly asked for the image operations to live *in* Edit; nesting them under an "Image" submenu risks re-introducing exactly what was removed. |
+| Selection | Transparent selection is always on; classic Paint defaults to *opaque* and makes transparency a toggle. | 3 | 5 | Matches the explicit request ("treat the background as transparent when moving"). A toggle is more faithful but adds a control; revisit if opaque moves are wanted. |
+| Selection | A free-form (lasso) selection can't be resized — grips appear only on the rectangular Select tool. | 3 | 5 | Deliberate: the lasso moves, and you switch to Select to scale. Documented rather than adding lasso-bbox grips. |
+| Save | ⌘S on an untitled document opens an in-app format dialog before the native save panel — two steps, and not the macOS norm of going straight to a save sheet. | 2 | 5 | Intentional per the "don't leave the user guessing the file format" request; the format dropdown is the point. |
+| Zoom | ⌘0 = actual size and ⌘9 = fit; most image editors map ⌘0 to fit. | 2 | 4 | Defensible (Preview-like), non-conflicting, and changing it would surprise users who've learned it. |
+| Color picker | The hex field silently ignores invalid input with no feedback. | 2 | 5 | Low impact; a validation cue is a nice-to-have, not a correctness issue. |
+| Canvas | The edge/corner resize handles are 10 px — a small hit target. | 3 | 5 | Enlarging the grab area without making the dots visually heavier needs a little care; low frequency of use. |
+| Eyedropper | Auto-reverting to the previous tool after a pick surprises non-Paint users. | 2 | 6 | Classic Paint behavior, kept on purpose. |
+| Theme | No in-app light/dark override — it always follows the system. | 2 | 4 | Correct macOS behavior; an override is optional, not expected. |
+
+### Not observable headlessly
+
+The native-shell items — maximized window, the Edit-menu merge, the Dictation/Emoji suppression, on-disk save, and trackpad-pinch zoom — depend on the Tauri shell and can't be exercised in the headless web build, so they aren't asserted by the e2e suite. They're implemented and wired; confirm with one pass in `pnpm dev`.
