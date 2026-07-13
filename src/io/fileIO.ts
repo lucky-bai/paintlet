@@ -33,35 +33,46 @@ export async function openImage(): Promise<void> {
   usePaintStore.getState().setFilePath(selected);
 }
 
-// File → Save / Save As. Encodes the base layer and writes it to disk.
+// File → Save / Save As. An already-saved file re-writes in place with no
+// prompt. Otherwise the native save panel is shown ONCE — its file-type popup
+// (PNG or JPEG) is where the format is chosen, so there's no extra in-app step:
+// the format is taken from the extension the user lands on (defaulting to PNG).
 export async function saveImage(saveAs = false): Promise<void> {
   const store = usePaintStore.getState();
-  let path = store.filePath;
-
-  if (saveAs || !path) {
-    const chosen = await save({
-      defaultPath: path ?? "untitled.png",
-      filters: [
-        { name: "PNG", extensions: ["png"] },
-        { name: "JPEG", extensions: ["jpg", "jpeg"] },
-      ],
-    });
-    if (!chosen) return;
-    path = chosen;
+  const path = store.filePath;
+  if (!saveAs && path) {
+    await writeTo(path, encoding(path));
+    return;
   }
 
-  // Ensure a usable extension so the encoder and the file name agree.
-  const ext = path.split(".").pop()?.toLowerCase();
-  if (!ext || !KNOWN_EXTS.has(ext)) path = `${path}.png`;
+  const stem = path ? path.replace(/\.[^./\\]+$/, "") : "untitled";
+  const chosen = await save({
+    defaultPath: `${stem}.png`,
+    filters: [
+      { name: "PNG image", extensions: ["png"] },
+      { name: "JPEG image", extensions: ["jpg", "jpeg"] },
+    ],
+  });
+  if (!chosen) return; // cancelled
 
-  // Bake any floating selection into the base before exporting.
+  // Ensure a known extension so the encoder and the on-disk name agree; an
+  // extension-less name defaults to PNG.
+  let dest = chosen;
+  const ext = dest.split(".").pop()?.toLowerCase();
+  if (!ext || !KNOWN_EXTS.has(ext)) dest = `${dest}.png`;
+
+  await writeTo(dest, encoding(dest));
+}
+
+// Bake any floating selection in, encode the base, and write it to disk.
+async function writeTo(
+  path: string,
+  { type, quality }: { type: string; quality?: number },
+): Promise<void> {
   engine.deselect();
-
-  const { type, quality } = encoding(path);
   const blob = await engine.toBlob(type, quality);
   const buf = new Uint8Array(await blob.arrayBuffer());
   await invoke("write_image_file", { path, data: Array.from(buf) });
-
-  store.setFilePath(path);
+  usePaintStore.getState().setFilePath(path);
   engine.markSaved();
 }

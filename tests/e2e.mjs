@@ -73,6 +73,20 @@ const countPx = (i, x, y, w, h, mode) =>
 // Drive a menu-only action through the app's own module instance.
 const action = (name) =>
   page.evaluate(async (n) => (await import("/src/actions.ts"))[n](), name);
+// Reset to a blank document without the dirty-guard dialog (the Tauri shim
+// can't answer it), and read a bit of store state.
+const reset = () =>
+  page.evaluate(async () => (await import("/src/state/store.ts")).engine.newDocument(800, 600));
+const storeState = () =>
+  page.evaluate(async () => {
+    const s = (await import("/src/state/store.ts")).usePaintStore.getState();
+    return { selectionSize: s.selectionSize, color1: s.color1 };
+  });
+const setZoom = (z) =>
+  page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setZoom(v), z);
+// Shape width is now a slider, not 1/3/5/8 buttons — set it through the store.
+const setShapeSize = (n) =>
+  page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setShapeSize(v), n);
 
 let box = await canvasBox();
 const at = (x, y) => [box.x + x, box.y + y];
@@ -90,7 +104,7 @@ const dragTo = async (x1, y1, x2, y2) => {
 
 // ── 1. 1px rectangle commits exactly 1px thick, then fills with no halo ───
 await page.keyboard.press("r");
-await page.locator('button[title="1px"]').click();
+await setShapeSize(1);
 await dragTo(100, 100, 300, 200);
 const edgeRows = await page.evaluate(() => {
   const d = document
@@ -226,6 +240,10 @@ step(
   textPx > 20 && (await page.locator("textarea").count()) === 0,
   `rasterized=${textPx}`,
 );
+// Saving an untitled document now opens the format dialog (the text already
+// flushed before it appeared); dismiss it so it doesn't cover the next steps.
+await page.keyboard.press("Escape");
+await page.waitForTimeout(60);
 
 // ── 8. canvas corner drag-handle grows the canvas; new area is white ──────
 box = await canvasBox();
@@ -257,6 +275,11 @@ const scroll = () =>
     const el = document.querySelector("div.overflow-auto");
     return [el.scrollLeft, el.scrollTop];
   });
+// Zoom well past fit so the canvas overflows the work area and is scrollable
+// (the smooth wheel zoom above is intentionally a small step, not enough on
+// its own), then pan.
+await setZoom(4);
+await page.waitForTimeout(60);
 await page.evaluate(() => {
   const el = document.querySelector("div.overflow-auto");
   el.scrollLeft = 200;
@@ -274,6 +297,237 @@ step(
   "fit / ctrl-wheel zoom / space-drag pan",
   fit !== "100%" && parseInt(wheeled) > parseInt(fit) && sl1 - sl0 === 80 && st1 - st0 === 60,
   `fit=${fit} wheel=${wheeled} pan=(${sl1 - sl0},${st1 - st0})`,
+);
+
+// ── 10. flood fill stays inside a thin (1px) oval — no leak, no fringe ────
+await setZoom(1);
+await page.waitForTimeout(60);
+box = await canvasBox();
+await reset();
+const setColor1 = (hex) =>
+  page.evaluate(async (h) => (await import("/src/state/store.ts")).usePaintStore.getState().setColor1(h), hex);
+await page.keyboard.press("o");
+await setShapeSize(1);
+await dragTo(200, 150, 600, 450);
+await page.waitForTimeout(30);
+await setColor1("#ed1c24");
+await page.keyboard.press("f");
+await clickAt(400, 300);
+await page.waitForTimeout(30);
+const ovalInside = await page.evaluate(() => {
+  const d = document.querySelectorAll("canvas")[0].getContext("2d").getImageData(360, 285, 80, 30).data;
+  let red = 0, other = 0;
+  for (let k = 0; k < d.length; k += 4) {
+    if (d[k] > 180 && d[k + 1] < 80 && d[k + 2] < 80) red++;
+    else if (!(d[k] === 255 && d[k + 1] === 255 && d[k + 2] === 255)) other++;
+  }
+  return { red, other };
+});
+const ovalCornerWhite = await countPx(0, 4, 4, 20, 20, "alpha"); // any non-transparent = still painted white bg → fine; leak would be red
+const cornerRed = await page.evaluate(() => {
+  const d = document.querySelectorAll("canvas")[0].getContext("2d").getImageData(4, 4, 20, 20).data;
+  let red = 0;
+  for (let k = 0; k < d.length; k += 4) if (d[k] > 180 && d[k + 1] < 80 && d[k + 2] < 80) red++;
+  return red;
+});
+step(
+  "flood fill stays inside a 1px oval (no leak through the curve)",
+  ovalInside.red > 2000 && ovalInside.other === 0 && cornerRed === 0,
+  `inside.red=${ovalInside.red} inside.other=${ovalInside.other} cornerRed=${cornerRed}`,
+);
+void ovalCornerWhite;
+
+// ── 11. selection resize grip scales the selection (Shift = keep aspect) ──
+await reset();
+await page.keyboard.press("s");
+await dragTo(100, 100, 300, 200); // 200×100 marquee
+await page.waitForTimeout(60);
+const beforeSel = (await storeState()).selectionSize;
+await dragTo(300, 200, 400, 300, 8); // drag SE grip out by +100,+100
+await page.waitForTimeout(60);
+const afterSel = (await storeState()).selectionSize;
+step(
+  "selection resize grip scales the selection",
+  beforeSel && beforeSel.w === 200 && afterSel && afterSel.w === 300 && afterSel.h === 200,
+  `before=${JSON.stringify(beforeSel)} after=${JSON.stringify(afterSel)}`,
+);
+
+// ── 12. transparent selection: moving doesn't stamp the bg color over content ─
+await page.evaluate(async () => {
+  const { engine } = await import("/src/state/store.ts");
+  engine.newDocument(800, 600);
+  const b = engine.base;
+  b.fillStyle = "#00c000"; b.fillRect(0, 300, 800, 300);
+  b.fillStyle = "#ff0000"; b.fillRect(360, 120, 80, 80);
+  engine.snapshot("setup");
+});
+await page.waitForTimeout(40);
+await page.keyboard.press("s");
+await dragTo(330, 100, 470, 220);
+await page.waitForTimeout(40);
+await dragTo(400, 160, 400, 460);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(60);
+const transp = await page.evaluate(() => {
+  const ctx = document.querySelectorAll("canvas")[0].getContext("2d");
+  const p = (x, y) => ctx.getImageData(x, y, 1, 1).data;
+  const red = p(400, 460), beside = p(345, 450);
+  return {
+    redOk: red[0] > 180 && red[1] < 80 && red[2] < 80,
+    greenBeside: beside[1] > 120 && beside[0] < 120 && beside[2] < 120,
+    beside: [beside[0], beside[1], beside[2]],
+  };
+});
+step(
+  "moving a selection treats bg as transparent (no white block)",
+  transp.redOk && transp.greenBeside,
+  `redUnder=${transp.redOk} greenBeside=${transp.greenBeside} beside=${JSON.stringify(transp.beside)}`,
+);
+
+// ── 13. Save is one-step: no in-app format dialog (the native panel picks) ──
+// Under the Tauri shim the native save() resolves to null (cancel); the point
+// is that saveFileAs no longer pops an in-app modal with a <select>.
+await action("saveFileAs");
+await page.waitForTimeout(120);
+const inAppSelects = await page.locator("select").count();
+step(
+  "save is one-step (no in-app format dialog)",
+  inAppSelects === 0,
+  `inAppSelectsInDom=${inAppSelects}`,
+);
+
+// ── 14. brush cursor scales with the painted size (size × zoom) ───────────
+await reset();
+const setBrushSize = (n) =>
+  page.evaluate(
+    async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setBrushSize(v),
+    n,
+  );
+// Read the applied inline cursor, not the computed one: headless Chromium can't
+// rasterize a data-URI cursor image so it reports `auto` for those from
+// getComputedStyle, but the inline style still carries the real url(...) string.
+const overlayCursor = () =>
+  page.locator("canvas").nth(1).evaluate((el) => el.style.cursor);
+const setTool = (id) =>
+  page.evaluate(
+    async (t) => (await import("/src/state/store.ts")).usePaintStore.getState().setTool(t),
+    id,
+  );
+await setTool("brush"); // via store: robust to focus left in a prior field
+await setBrushSize(4);
+await page.waitForTimeout(30);
+const smallCur = await overlayCursor();
+await setBrushSize(48);
+await page.waitForTimeout(30);
+const bigCur = await overlayCursor();
+step(
+  "brush cursor scales with size",
+  smallCur.startsWith("url(") && bigCur.startsWith("url(") && smallCur !== bigCur,
+  `small="${smallCur.slice(0, 16)}" big="${bigCur.slice(0, 16)}" differ=${smallCur !== bigCur}`,
+);
+
+// ── 15. hovering inside a selection telegraphs a move ─────────────────────
+await reset();
+await page.keyboard.press("s");
+await dragTo(120, 120, 320, 240);
+await page.waitForTimeout(40);
+await page.mouse.move(...at(220, 180)); // inside the marquee, no button held
+await page.waitForTimeout(40);
+const insideCur = await overlayCursor();
+await page.keyboard.press("Escape");
+step("move cursor shows inside a selection", insideCur === "move", `cursor=${insideCur}`);
+
+// ── 16. status bar surfaces a per-tool usage hint (curve) ─────────────────
+await page.keyboard.press("c");
+await page.waitForTimeout(30);
+const curveHint = await page.getByText(/drag twice to bend/i).count();
+await page.keyboard.press("p");
+step("status bar shows a per-tool hint (curve)", curveHint === 1, `hintShown=${curveHint}`);
+
+// ── 17. line weight is uniform across angles (aliased rasterizer) ─────────
+// Previously diagonals hardened ~25% heavier than axis-aligned lines. Measure
+// ink-per-unit-length for a horizontal vs a 45° line at size 5.
+const lineWeight = async (x1, y1, x2, y2) => {
+  await reset();
+  await setColor1("#000000");
+  await setShapeSize(5);
+  await page.waitForTimeout(20);
+  box = await canvasBox(); // refresh: earlier checks may have shifted the paper
+  await page.keyboard.press("l");
+  await dragTo(x1, y1, x2, y2);
+  await page.waitForTimeout(20);
+  const bx = Math.min(x1, x2) - 6, by = Math.min(y1, y2) - 6;
+  const dark = await countPx(0, bx, by, Math.abs(x2 - x1) + 12, Math.abs(y2 - y1) + 12, "dark");
+  return dark / Math.hypot(x2 - x1, y2 - y1);
+};
+const hW = await lineWeight(100, 150, 400, 150); // horizontal
+const dW = await lineWeight(100, 150, 340, 390); // 45° diagonal
+const ratio = dW / hW;
+step(
+  "line weight is uniform across angles",
+  hW > 4 && hW < 7 && ratio > 0.8 && ratio < 1.2,
+  `horiz=${hW.toFixed(2)}px diag=${dW.toFixed(2)}px ratio=${ratio.toFixed(2)}`,
+);
+
+// ── 18. eyedropper shows the sampled color in a swatch beside the pointer ──
+await reset();
+await page.evaluate(async () => {
+  const { engine } = await import("/src/state/store.ts");
+  engine.base.fillStyle = "#ed1c24";
+  engine.base.fillRect(120, 120, 200, 200);
+  engine.snapshot("swatch-setup");
+});
+await setTool("eyedropper");
+await page.mouse.move(...at(220, 220));
+await page.waitForTimeout(80);
+const swatchBg = await page
+  .locator('[data-testid="dropper-swatch"]')
+  .evaluate((el) => getComputedStyle(el).backgroundColor)
+  .catch(() => null);
+await page.mouse.move(...at(700, 500)); // off the block → white
+step(
+  "eyedropper shows a live color swatch",
+  swatchBg === "rgb(237, 28, 36)",
+  `swatchBg=${swatchBg}`,
+);
+
+// ── 19. text: placing near the bottom doesn't scroll; box drags before commit ─
+await page.evaluate(async () =>
+  (await import("/src/state/store.ts")).usePaintStore.getState().setTool("pencil"),
+);
+await page.evaluate(async () =>
+  (await import("/src/state/store.ts")).engine.newDocument(400, 2000),
+);
+await setZoom(1);
+await page.waitForTimeout(40);
+box = await canvasBox();
+await page.evaluate(() => {
+  document.querySelector("div.overflow-auto").scrollTop = 0;
+});
+const scrollBefore = await page.evaluate(() => document.querySelector("div.overflow-auto").scrollTop);
+await setTool("text");
+// Place the editor near the very bottom of the viewport, where focusing it used
+// to scroll the work area (bug: whole canvas shifted).
+const ty = Math.round(720 - box.y);
+await clickAt(200, ty);
+await page.keyboard.type("Move me");
+await page.waitForTimeout(60);
+const scrollAfter = await page.evaluate(() => document.querySelector("div.overflow-auto").scrollTop);
+const ta0 = await page.locator("textarea").boundingBox();
+const handle = page.locator('div[title="Drag to move the text"]');
+const hb = await handle.boundingBox();
+await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+await page.mouse.down();
+await page.mouse.move(hb.x + hb.width / 2 + 60, hb.y + hb.height / 2 - 40, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(60);
+const ta1 = await page.locator("textarea").boundingBox();
+const movedX = Math.round(ta1.x - ta0.x);
+const movedY = Math.round(ta1.y - ta0.y);
+step(
+  "text: no scroll jump on placement, and the box drags before commit",
+  Math.abs(scrollAfter - scrollBefore) <= 3 && movedX > 40 && movedY < -25,
+  `scrollDelta=${scrollAfter - scrollBefore} movedX=${movedX} movedY=${movedY}`,
 );
 
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });

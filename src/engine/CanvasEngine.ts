@@ -1,4 +1,6 @@
 import { History } from "./History";
+import { hexToRgba } from "./color";
+import { selectionHandles } from "./selectionHandles";
 import type { Point, Rect } from "./types";
 
 // Snapshot of engine state that the UI mirrors (menu/button enablement, title
@@ -47,11 +49,25 @@ export class CanvasEngine {
   // Lifted/pasted pixels that hover above the base until committed. Drawn on the
   // selection layer at (floatX, floatY); folded into the base on commit.
   private floatCanvas: HTMLCanvasElement | null = null;
+  // The pristine, natural-size lifted/pasted pixels. `floatCanvas` may be a
+  // scaled render of this (selection resize); scaling always rescales from the
+  // original so repeated drags don't compound resampling loss.
+  private floatOrig: HTMLCanvasElement | null = null;
+  // `floatCanvas` with the background color knocked out to transparent — the
+  // "transparent selection" the user sees while moving and what actually gets
+  // stamped, so a moved selection never paints a solid bg-colored block over
+  // existing pixels. Cached (position-independent) and rebuilt only when the
+  // float pixels or the background color change.
+  private floatDisplay: HTMLCanvasElement | null = null;
   private floatX = 0;
   private floatY = 0;
   // True when the float was lifted from the base (a move left a hole that must
   // be kept on delete); false for a pasted float (additive, no hole).
   private floatLifted = false;
+  // Background color (Color 2), mirrored from the store. Used both to fill the
+  // hole a lifted selection leaves and, as the transparent-selection key, to
+  // knock out matching pixels when a float is stamped down.
+  private bgColor = "#ffffff";
 
   // Bind the engine to the three stacked canvas elements the CanvasStage mounts.
   // Called once on mount; programmatic resizes go through the size-changing
@@ -89,6 +105,39 @@ export class CanvasEngine {
   setOnChange(cb: (c: EngineChange) => void): void {
     this.onChange = cb;
   }
+
+  // Track the background color (Color 2). Rebuilds the transparent-selection
+  // display so a float already in flight reflects the new key on the next frame
+  // (the selection rAF loop repaints continuously while something is selected).
+  setBgColor(hex: string): void {
+    if (hex === this.bgColor) return;
+    this.bgColor = hex;
+    if (this.floatCanvas) this.rebuildFloatDisplay();
+  }
+
+  // Rebuild `floatDisplay` from `floatCanvas`, knocking the background color out
+  // to transparent (exact match, like Paint's transparent selection).
+  private rebuildFloatDisplay(): void {
+    if (!this.floatCanvas) {
+      this.floatDisplay = null;
+      return;
+    }
+    const src = this.floatCanvas;
+    const c = document.createElement("canvas");
+    c.width = src.width;
+    c.height = src.height;
+    const ctx = c.getContext("2d")!;
+    ctx.drawImage(src, 0, 0);
+    const [br, bg, bb] = hexToRgba(this.bgColor);
+    const img = ctx.getImageData(0, 0, src.width, src.height);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] === br && d[i + 1] === bg && d[i + 2] === bb) d[i + 3] = 0;
+    }
+    ctx.putImageData(img, 0, 0);
+    this.floatDisplay = c;
+  }
+
 
   private emit(): void {
     this.onChange?.({
@@ -156,12 +205,22 @@ export class CanvasEngine {
     this.emit();
   }
 
-  // Snap the overlay's alpha channel to 0 or 255 at a 50%-coverage cutoff,
-  // turning anti-aliased edges into hard ones. The overlay holds a single
-  // stroke color over transparency, so its RGB is already the stroke color
-  // wherever it was drawn — only the coverage (alpha) needs hardening. This is
-  // what lets the exact-match bucket reach a shape's border with no 1px halo.
-  private hardenOverlayAlpha(cutoff = 128): void {
+  // Snap the overlay's alpha channel to 0 or 255, turning anti-aliased edges
+  // into hard ones. The overlay holds a single stroke color over transparency,
+  // so its RGB is already the stroke color wherever it was drawn — only the
+  // coverage (alpha) needs hardening. This is what lets the exact-match bucket
+  // reach a shape's border with no 1px halo.
+  //
+  // The cutoff is deliberately LOW (seal the whole footprint of any pixel the
+  // stroke touched), not 50%. A 50% cutoff drops the faintly-covered pixels
+  // along a thin curve — and a single dropped pixel breaks the outline's
+  // connectivity, so a flood fill escapes through the gap and floods the whole
+  // canvas (the classic "fill a circle, everything turns one color" bug).
+  // Sealing the footprint keeps thin curves 8-connected and fill-tight, exactly
+  // like Paint's Bresenham outlines. Axis-aligned 1px strokes have no AA (their
+  // half-pixel offset lands them on a single row/column), so they stay 1px;
+  // only diagonals and curves gain the ~2px staircase Paint has anyway.
+  private hardenOverlayAlpha(cutoff = 16): void {
     const img = this.overlay.getImageData(0, 0, this.width, this.height);
     const d = img.data;
     for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= cutoff ? 255 : 0;
@@ -493,6 +552,8 @@ export class CanvasEngine {
       fctx.drawImage(this.baseCanvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     }
     this.floatCanvas = fc;
+    this.floatOrig = fc;
+    this.rebuildFloatDisplay();
     this.floatX = r.x;
     this.floatY = r.y;
     this.floatLifted = true;
@@ -518,11 +579,47 @@ export class CanvasEngine {
     };
   }
 
+  // Scale the floating content to a new rect (selection resize-handle drag).
+  // Always rescales from the pristine `floatOrig` so dragging a handle back and
+  // forth doesn't accumulate resampling blur. The marquee tracks the new box;
+  // a lasso outline is dropped (the box becomes the selection) since the scaled
+  // shape no longer matches the original outline — the clipped transparency in
+  // the float still carries the shape's silhouette.
+  scaleFloatTo(x: number, y: number, w: number, h: number): void {
+    if (!this.floatOrig || !this.selection) return;
+    const W = Math.max(1, Math.round(w));
+    const H = Math.max(1, Math.round(h));
+    const fc = document.createElement("canvas");
+    fc.width = W;
+    fc.height = H;
+    const fctx = fc.getContext("2d")!;
+    fctx.imageSmoothingEnabled = true;
+    fctx.drawImage(
+      this.floatOrig,
+      0,
+      0,
+      this.floatOrig.width,
+      this.floatOrig.height,
+      0,
+      0,
+      W,
+      H,
+    );
+    this.floatCanvas = fc;
+    this.rebuildFloatDisplay();
+    this.floatX = Math.round(x);
+    this.floatY = Math.round(y);
+    this.selection = { x: this.floatX, y: this.floatY, w: W, h: H };
+    this.selPoly = null;
+    this.selPolyClosed = false;
+    this.emit();
+  }
+
   // Fold the float into the base and record one history step. Returns whether a
   // float existed. Used on deselect (Esc / tool switch / new marquee).
   commitFloat(): boolean {
     if (!this.floatCanvas) return false;
-    this.base.drawImage(this.floatCanvas, this.floatX, this.floatY);
+    this.base.drawImage(this.floatDisplay ?? this.floatCanvas, this.floatX, this.floatY);
     this.discardFloat();
     this.history.push(this.readBase());
     this.dirty = true;
@@ -533,12 +630,14 @@ export class CanvasEngine {
   // crop, flip, paste, select-all) that immediately record their own step.
   private stampFloatOnly(): void {
     if (!this.floatCanvas) return;
-    this.base.drawImage(this.floatCanvas, this.floatX, this.floatY);
+    this.base.drawImage(this.floatDisplay ?? this.floatCanvas, this.floatX, this.floatY);
     this.discardFloat();
   }
 
   private discardFloat(): void {
     this.floatCanvas = null;
+    this.floatOrig = null;
+    this.floatDisplay = null;
     this.floatLifted = false;
   }
 
@@ -630,6 +729,8 @@ export class CanvasEngine {
     fc.height = img.height;
     fc.getContext("2d")!.putImageData(img, 0, 0);
     this.floatCanvas = fc;
+    this.floatOrig = fc;
+    this.rebuildFloatDisplay();
     this.floatLifted = false;
     this.floatX = 0;
     this.floatY = 0;
@@ -639,12 +740,14 @@ export class CanvasEngine {
   }
 
   // Repaint the selection layer: floating content, then animated marching ants
-  // along the current marquee — the rect, or the lasso outline when one exists.
-  // Driven by CanvasStage's rAF loop.
-  renderSelection(dashOffset = 0): void {
+  // along the current marquee — the rect, or the lasso outline when one exists —
+  // and (when asked) the eight resize grips. Driven by CanvasStage's rAF loop;
+  // `zoom` keeps the grips a constant on-screen size despite the CSS scale.
+  renderSelection(dashOffset = 0, zoom = 1, showHandles = false): void {
     const s = this.sel;
     s.clearRect(0, 0, this.width, this.height);
-    if (this.floatCanvas) s.drawImage(this.floatCanvas, this.floatX, this.floatY);
+    const shown = this.floatDisplay ?? this.floatCanvas;
+    if (shown) s.drawImage(shown, this.floatX, this.floatY);
     const r = this.selection;
     if (!r || r.w < 1 || r.h < 1) return;
     const path = this.selPath(false);
@@ -661,6 +764,26 @@ export class CanvasEngine {
     if (path) s.stroke(path);
     else
       s.strokeRect(r.x + 0.5, r.y + 0.5, Math.max(0, r.w - 1), Math.max(0, r.h - 1));
+    s.restore();
+
+    if (showHandles) this.drawHandles(r, zoom);
+  }
+
+  // Small square grips at the selection's corners and edge midpoints. Sized in
+  // image px as (constant / zoom) so they render at a fixed on-screen size.
+  private drawHandles(r: Rect, zoom: number): void {
+    const s = this.sel;
+    const size = 7 / zoom; // ~7 screen px
+    const half = size / 2;
+    s.save();
+    s.setLineDash([]);
+    s.lineWidth = 1 / zoom;
+    for (const h of selectionHandles(r)) {
+      s.fillStyle = "#ffffff";
+      s.strokeStyle = "#000000";
+      s.fillRect(h.x - half, h.y - half, size, size);
+      s.strokeRect(h.x - half, h.y - half, size, size);
+    }
     s.restore();
   }
 

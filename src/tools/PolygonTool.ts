@@ -1,5 +1,6 @@
 import type { Point } from "../engine/types";
-import { constrainTo45, oddStrokeOffset, roundPoint } from "./shapes";
+import { strokeAliasedPath } from "../engine/raster";
+import { constrainTo45, roundPoint } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
 // Polygon — the classic Paint multi-click shape. Drag (or click) to place the
@@ -74,17 +75,13 @@ export class PolygonTool implements Tool {
     }
   }
 
-  // Close the outline back to the first vertex and commit hard-edged.
+  // Close the outline back to the first vertex and commit hard-edged. Aliased
+  // rasterization keeps every side the same weight regardless of angle.
   private finish(ctx: ToolContext): void {
     ctx.clearPreview();
-    const o = ctx.overlay;
-    this.applyStroke(o, ctx.size);
-    this.tracePath(o);
-    o.closePath();
-    o.stroke();
-    o.restore();
+    strokeAliasedPath(ctx.overlay, this.points, ctx.size, this.color, true);
     this.reset();
-    ctx.commit("polygon", true);
+    ctx.commit("polygon"); // already hard-edged
   }
 
   // Redraw the committed polyline plus the rubber-band segment to the cursor.
@@ -92,30 +89,7 @@ export class PolygonTool implements Tool {
     if (!this.points.length) return;
     const end = roundPoint(this.constrained(p));
     ctx.clearPreview();
-    const o = ctx.overlay;
-    this.applyStroke(o, ctx.size);
-    this.tracePath(o);
-    o.lineTo(end.x, end.y);
-    o.stroke();
-    o.restore();
-  }
-
-  private tracePath(o: CanvasRenderingContext2D): void {
-    const pts = this.points.map(roundPoint);
-    o.beginPath();
-    o.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) o.lineTo(pts[i].x, pts[i].y);
-  }
-
-  // Pairs with o.restore() at each call site (pixel-grid translate for odd widths).
-  private applyStroke(o: CanvasRenderingContext2D, size: number): void {
-    o.save();
-    const off = oddStrokeOffset(size);
-    o.translate(off, off);
-    o.strokeStyle = this.color;
-    o.lineWidth = size;
-    o.lineCap = "round";
-    o.lineJoin = "round";
+    strokeAliasedPath(ctx.overlay, [...this.points, end], ctx.size, this.color);
   }
 
   private constrained(p: PointerInfo): Point {

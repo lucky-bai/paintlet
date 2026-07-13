@@ -1,9 +1,12 @@
 import type { Point } from "../engine/types";
-import { constrainTo45, oddStrokeOffset, roundPoint } from "./shapes";
+import { strokeAliasedPath } from "../engine/raster";
+import { constrainTo45 } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
 // Straight line — preview on the overlay each move, commit on release. Hold
-// Shift to constrain to 45° increments.
+// Shift to constrain to 45° increments. Rasterized aliased (Bresenham) so the
+// stroke is the same weight at every angle — horizontal, vertical, and diagonal
+// all commit exactly `size` px, with no anti-aliased staircase.
 export class LineTool implements Tool {
   id = "line" as const;
   cursor = "crosshair";
@@ -25,7 +28,7 @@ export class LineTool implements Tool {
     if (!this.start) return;
     this.draw(p, ctx); // draw at the final position in case moves lagged
     this.start = null;
-    ctx.commit("line", true);
+    ctx.commit("line"); // already hard-edged; no alpha hardening needed
   }
 
   onDeactivate(ctx: ToolContext): void {
@@ -37,22 +40,8 @@ export class LineTool implements Tool {
 
   private draw(p: PointerInfo, ctx: ToolContext): void {
     if (!this.start) return;
-    const a = roundPoint(this.start);
-    const b = roundPoint(
-      p.shiftKey ? constrainTo45(this.start, p.point) : p.point,
-    );
-    const off = oddStrokeOffset(ctx.size);
+    const end = p.shiftKey ? constrainTo45(this.start, p.point) : p.point;
     ctx.clearPreview();
-    const o = ctx.overlay;
-    o.save();
-    o.translate(off, off);
-    o.strokeStyle = this.color;
-    o.lineWidth = ctx.size;
-    o.lineCap = "round";
-    o.beginPath();
-    o.moveTo(a.x, a.y);
-    o.lineTo(b.x, b.y);
-    o.stroke();
-    o.restore();
+    strokeAliasedPath(ctx.overlay, [this.start, end], ctx.size, this.color);
   }
 }

@@ -23,15 +23,11 @@ const item = (
 const sep = () => PredefinedMenuItem.new({ item: "Separator" });
 
 export async function installAppMenu(): Promise<void> {
+  // Deliberately minimal: just Quit. The default Hide / Hide Others / Show All
+  // items are dropped — they're clutter for a single-window paint app.
   const appMenu = await Submenu.new({
     text: "VibePaint",
-    items: [
-      await PredefinedMenuItem.new({ item: "Hide", text: "Hide VibePaint" }),
-      await PredefinedMenuItem.new({ item: "HideOthers" }),
-      await PredefinedMenuItem.new({ item: "ShowAll" }),
-      await sep(),
-      await PredefinedMenuItem.new({ item: "Quit", text: "Quit VibePaint" }),
-    ],
+    items: [await PredefinedMenuItem.new({ item: "Quit", text: "Quit VibePaint" })],
   });
 
   const fileMenu = await Submenu.new({
@@ -47,6 +43,8 @@ export async function installAppMenu(): Promise<void> {
     ],
   });
 
+  // Edit holds the clipboard/selection commands and, folded in below, the image
+  // operations (there's no separate Image menu — those commands live here).
   const editMenu = await Submenu.new({
     text: "Edit",
     items: [
@@ -59,12 +57,7 @@ export async function installAppMenu(): Promise<void> {
       await item("Delete", undefined, A.deleteSelection),
       await sep(),
       await item("Select All", "CmdOrCtrl+A", A.selectAll),
-    ],
-  });
-
-  const imageMenu = await Submenu.new({
-    text: "Image",
-    items: [
+      await sep(),
       await item("Resize…", undefined, A.openResizeDialog),
       await item("Crop to Selection", undefined, A.crop),
       await sep(),
@@ -87,7 +80,7 @@ export async function installAppMenu(): Promise<void> {
   });
 
   const menu = await Menu.new({
-    items: [appMenu, fileMenu, editMenu, imageMenu, viewMenu],
+    items: [appMenu, fileMenu, editMenu, viewMenu],
   });
   await menu.setAsAppMenu();
 }

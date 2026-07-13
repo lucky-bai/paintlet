@@ -95,8 +95,15 @@ export const usePaintStore = create<PaintState>((set) => ({
         : { activeToolId: id, previousToolId: s.activeToolId },
     ),
   setColor1: (c) => set({ color1: c }),
-  setColor2: (c) => set({ color2: c }),
-  swapColors: () => set((s) => ({ color1: s.color2, color2: s.color1 })),
+  setColor2: (c) => {
+    engine.setBgColor(c); // keep the transparent-selection / hole-fill key in sync
+    set({ color2: c });
+  },
+  swapColors: () =>
+    set((s) => {
+      engine.setBgColor(s.color1);
+      return { color1: s.color2, color2: s.color1 };
+    }),
   setBrushSize: (n) => set({ brushSize: n }),
   setShapeSize: (n) => set({ shapeSize: n }),
   setTextStyle: (patch) =>
