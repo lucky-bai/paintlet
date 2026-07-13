@@ -33,17 +33,10 @@ export async function openImage(): Promise<void> {
   usePaintStore.getState().setFilePath(selected);
 }
 
-export type SaveFormat = "png" | "jpeg";
-
-// The format the Save dialog should default to for the current document.
-export function currentFormat(): SaveFormat {
-  const path = usePaintStore.getState().filePath;
-  return path && /\.jpe?g$/i.test(path) ? "jpeg" : "png";
-}
-
-// File → Save. An already-saved file re-writes in its existing format with no
-// prompt; a new/untitled document needs a format + destination, so it opens the
-// in-app Save dialog (which then calls saveWithFormat).
+// File → Save / Save As. An already-saved file re-writes in place with no
+// prompt. Otherwise the native save panel is shown ONCE — its file-type popup
+// (PNG or JPEG) is where the format is chosen, so there's no extra in-app step:
+// the format is taken from the extension the user lands on (defaulting to PNG).
 export async function saveImage(saveAs = false): Promise<void> {
   const store = usePaintStore.getState();
   const path = store.filePath;
@@ -51,38 +44,24 @@ export async function saveImage(saveAs = false): Promise<void> {
     await writeTo(path, encoding(path));
     return;
   }
-  store.setSaveDialogOpen(true);
-}
 
-// Chosen from the Save dialog: pick the destination (native panel, filtered to
-// just the chosen format so it isn't ambiguous), then encode and write. Returns
-// false if the user cancelled the destination picker.
-export async function saveWithFormat(
-  format: SaveFormat,
-  quality: number,
-): Promise<boolean> {
-  const store = usePaintStore.getState();
-  const stem = store.filePath ? store.filePath.replace(/\.[^./\\]+$/, "") : "untitled";
-  const ext = format === "jpeg" ? "jpg" : "png";
-  const filter =
-    format === "jpeg"
-      ? { name: "JPEG image", extensions: ["jpg", "jpeg"] }
-      : { name: "PNG image", extensions: ["png"] };
-
-  const chosen = await save({ defaultPath: `${stem}.${ext}`, filters: [filter] });
-  if (!chosen) return false;
-
-  // Honor the picked format even if the typed name carried a different (or no)
-  // extension — the dialog's dropdown is the source of truth, not the guess.
-  let path = chosen;
-  const chosenExt = path.split(".").pop()?.toLowerCase();
-  if (!chosenExt || !KNOWN_EXTS.has(chosenExt)) path = `${path}.${ext}`;
-
-  await writeTo(path, {
-    type: format === "jpeg" ? "image/jpeg" : "image/png",
-    quality: format === "jpeg" ? quality / 100 : undefined,
+  const stem = path ? path.replace(/\.[^./\\]+$/, "") : "untitled";
+  const chosen = await save({
+    defaultPath: `${stem}.png`,
+    filters: [
+      { name: "PNG image", extensions: ["png"] },
+      { name: "JPEG image", extensions: ["jpg", "jpeg"] },
+    ],
   });
-  return true;
+  if (!chosen) return; // cancelled
+
+  // Ensure a known extension so the encoder and the on-disk name agree; an
+  // extension-less name defaults to PNG.
+  let dest = chosen;
+  const ext = dest.split(".").pop()?.toLowerCase();
+  if (!ext || !KNOWN_EXTS.has(ext)) dest = `${dest}.png`;
+
+  await writeTo(dest, encoding(dest));
 }
 
 // Bake any floating selection in, encode the base, and write it to disk.

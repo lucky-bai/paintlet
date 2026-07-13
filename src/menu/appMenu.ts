@@ -23,15 +23,11 @@ const item = (
 const sep = () => PredefinedMenuItem.new({ item: "Separator" });
 
 export async function installAppMenu(): Promise<void> {
+  // Deliberately minimal: just Quit. The default Hide / Hide Others / Show All
+  // items are dropped — they're clutter for a single-window paint app.
   const appMenu = await Submenu.new({
     text: "VibePaint",
-    items: [
-      await PredefinedMenuItem.new({ item: "Hide", text: "Hide VibePaint" }),
-      await PredefinedMenuItem.new({ item: "HideOthers" }),
-      await PredefinedMenuItem.new({ item: "ShowAll" }),
-      await sep(),
-      await PredefinedMenuItem.new({ item: "Quit", text: "Quit VibePaint" }),
-    ],
+    items: [await PredefinedMenuItem.new({ item: "Quit", text: "Quit VibePaint" })],
   });
 
   const fileMenu = await Submenu.new({

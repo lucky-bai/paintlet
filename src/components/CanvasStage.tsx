@@ -5,6 +5,7 @@ import { viewport } from "../state/viewport";
 import { screenToCanvas } from "../engine/coords";
 import { getTool, isShapeTool } from "../tools/registry";
 import { clampZoom } from "../lib/zoom";
+import { rgbToHex } from "../engine/color";
 import { sizedCursor } from "../lib/cursors";
 import { HANDLE_CURSOR, selectionHandles } from "../engine/selectionHandles";
 import type { MouseButton, Point, Rect, TextStyle, ToolId } from "../engine/types";
@@ -38,7 +39,36 @@ export function CanvasStage() {
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const selectionRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const drawing = useRef(false);
+
+  // Pointer-move / hover previews are coalesced to one animation frame (see
+  // scheduleMove): raw pointer events fire faster than 60fps, and a full overlay
+  // clear + shape re-stroke per event made the curve/polygon preview lag.
+  const moveRaf = useRef(0);
+  const lastPointer = useRef<{
+    clientX: number;
+    clientY: number;
+    shiftKey: boolean;
+    buttons: number;
+    button: number;
+  } | null>(null);
+
+  // Live color preview shown beside the eyedropper (client coords + sampled hex).
+  const [dropper, setDropper] = useState<{
+    cx: number;
+    cy: number;
+    color: string;
+  } | null>(null);
+
+  // Drag state for repositioning the floating text box before it's committed.
+  const textDrag = useRef<{
+    id: number;
+    sx: number;
+    sy: number;
+    ox: number;
+    oy: number;
+  } | null>(null);
 
   // — panning (space-drag or middle-drag) —
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -253,7 +283,17 @@ export function CanvasStage() {
   useEffect(() => {
     const isSelect = activeToolId === "select" || activeToolId === "freeSelect";
     if (!isSelect || !hasSelection) setHandleCursor(null);
+    if (activeToolId !== "eyedropper") setDropper(null);
   }, [activeToolId, hasSelection]);
+
+  // Focus the floating text editor when it's placed or repositioned (not on
+  // every keystroke). preventScroll stops the browser from scrolling the work
+  // area to reveal the editor, which used to shift the whole canvas.
+  useEffect(() => {
+    if (textEdit) textareaRef.current?.focus({ preventScroll: true });
+    // Refocus on placement/drag (cx/cy change), not on typing (value change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textEdit?.cx, textEdit?.cy]);
 
   // Zoom gestures on the work area: ⌘/Ctrl-wheel (and Chromium's synthesized
   // ctrl-wheel for pinches) plus WebKit's native gesture events, which is what
@@ -505,40 +545,80 @@ export function CanvasStage() {
     tool.onPointerDown(infoOf(e), makeCtx());
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    usePaintStore
-      .getState()
-      .setCursorPos(screenToCanvas(e.clientX, e.clientY, overlayRef.current!));
-    const tool = getTool(activeToolId);
+  // Build a PointerInfo from a plain snapshot of pointer fields (React events
+  // are pooled, so we can't stash the event itself for the deferred frame).
+  const infoFromRaw = (r: {
+    clientX: number;
+    clientY: number;
+    shiftKey: boolean;
+    buttons: number;
+    button: number;
+  }): PointerInfo => ({
+    point: screenToCanvas(r.clientX, r.clientY, overlayRef.current!),
+    button: r.button === 2 || (r.buttons & 2) === 2 ? "secondary" : "primary",
+    shiftKey: r.shiftKey,
+  });
+
+  // Flush the latest pointer sample: update the coordinate readout, then either
+  // continue the active stroke or run the hover behaviors (selection cursor,
+  // eyedropper swatch, multi-click rubber-band). Runs once per animation frame.
+  const processMove = () => {
+    moveRaf.current = 0;
+    const r = lastPointer.current;
+    if (!r || !overlayRef.current) return;
+    const info = infoFromRaw(r);
+    const store = usePaintStore.getState();
+    store.setCursorPos(info.point);
+    const id = store.activeToolId;
+    const tool = getTool(id);
     if (!drawing.current) {
       // Telegraph what a press would do over a selection: a resize grip (rect
-      // Select tool only) or, inside the selection body, a move. Everywhere
-      // else the tool's own cursor shows.
-      if (
-        (activeToolId === "select" || activeToolId === "freeSelect") &&
-        engine.hasSelectionOrFloat()
-      ) {
-        const pt = screenToCanvas(e.clientX, e.clientY, overlayRef.current!);
-        const z = usePaintStore.getState().view.zoom;
+      // Select tool only) or, inside the body, a move.
+      if ((id === "select" || id === "freeSelect") && engine.hasSelectionOrFloat()) {
         const grip =
-          activeToolId === "select" && engine.selection
-            ? handleCursorAt(pt, engine.selection, z)
+          id === "select" && engine.selection
+            ? handleCursorAt(info.point, engine.selection, store.view.zoom)
             : null;
-        setHandleCursor(
-          grip ?? (engine.isInsideSelection(pt) ? "move" : null),
-        );
-      } else if (handleCursor !== null) {
+        setHandleCursor(grip ?? (engine.isInsideSelection(info.point) ? "move" : null));
+      } else {
         setHandleCursor(null);
       }
-      // Multi-click tools (polygon) rubber-band between clicks.
-      tool?.onPointerHover?.(infoOf(e), makeCtx());
+      // Eyedropper: show the color under the pointer in a square beside it.
+      if (id === "eyedropper") {
+        const [pr, pg, pb] = engine.getPixel(info.point);
+        setDropper({ cx: r.clientX, cy: r.clientY, color: rgbToHex(pr, pg, pb) });
+      } else {
+        setDropper(null);
+      }
+      tool?.onPointerHover?.(info, makeCtx());
       return;
     }
-    tool?.onPointerMove(infoOf(e), makeCtx());
+    tool?.onPointerMove(info, makeCtx());
+  };
+
+  const scheduleMove = (e: React.PointerEvent) => {
+    lastPointer.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      shiftKey: e.shiftKey,
+      buttons: e.buttons,
+      button: e.button,
+    };
+    if (!moveRaf.current) moveRaf.current = requestAnimationFrame(processMove);
+  };
+
+  // Apply any pending move immediately (before commit / leave), so the last
+  // sample isn't lost to a frame that never runs.
+  const flushMove = () => {
+    if (moveRaf.current) {
+      cancelAnimationFrame(moveRaf.current);
+      processMove();
+    }
   };
 
   const endStroke = (e: React.PointerEvent) => {
     if (!drawing.current) return;
+    flushMove();
     drawing.current = false;
     getTool(activeToolId)?.onPointerUp(infoOf(e), makeCtx());
     try {
@@ -549,7 +629,42 @@ export function CanvasStage() {
     // Classic Paint: after the eyedropper picks, return to the previous tool.
     if (activeToolId === "eyedropper") {
       const s = usePaintStore.getState();
+      setDropper(null);
       s.setTool(s.previousToolId === "eyedropper" ? "pencil" : s.previousToolId);
+    }
+  };
+
+  // — text-box drag (reposition the floating editor before committing) —
+  const onTextHandleDown = (e: React.PointerEvent) => {
+    if (!textEdit) return;
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    textDrag.current = {
+      id: e.pointerId,
+      sx: e.clientX,
+      sy: e.clientY,
+      ox: textEdit.cx,
+      oy: textEdit.cy,
+    };
+  };
+  const onTextHandleMove = (e: React.PointerEvent) => {
+    const d = textDrag.current;
+    if (!d || e.pointerId !== d.id) return;
+    e.stopPropagation();
+    const z = usePaintStore.getState().view.zoom;
+    setTextEdit((t) =>
+      t ? { ...t, cx: d.ox + (e.clientX - d.sx) / z, cy: d.oy + (e.clientY - d.sy) / z } : t,
+    );
+  };
+  const onTextHandleUp = (e: React.PointerEvent) => {
+    if (!textDrag.current || e.pointerId !== textDrag.current.id) return;
+    e.stopPropagation();
+    textDrag.current = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* already released */
     }
   };
 
@@ -602,12 +717,18 @@ export function CanvasStage() {
             className="absolute left-0 top-0 touch-none"
             style={{ ...cssSize, imageRendering: "pixelated", cursor }}
             onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
+            onPointerMove={scheduleMove}
             onPointerUp={endStroke}
             onPointerCancel={endStroke}
-            onPointerLeave={() =>
-              !drawing.current && usePaintStore.getState().setCursorPos(null)
-            }
+            onPointerLeave={() => {
+              if (drawing.current) return;
+              if (moveRaf.current) {
+                cancelAnimationFrame(moveRaf.current);
+                moveRaf.current = 0;
+              }
+              usePaintStore.getState().setCursorPos(null);
+              setDropper(null);
+            }}
           />
           {/* Selection layer: marquee + floating content. Pointer-transparent so
               the overlay below keeps receiving pointer events. */}
@@ -661,44 +782,71 @@ export function CanvasStage() {
           )}
 
           {/* Floating multi-line text editor — rasterized onto the canvas when
-              a new action starts or the tool changes. */}
+              a new action starts or the tool changes. A grab bar above it
+              repositions the box before it's committed. */}
           {textEdit && box && (
-            <textarea
-              key={`${textEdit.cx},${textEdit.cy}`}
-              autoFocus
-              ref={(el) => el?.focus()}
-              value={textEdit.value}
-              spellCheck={false}
-              wrap="off"
-              onChange={(e) =>
-                setTextEdit({ ...textEdit, value: e.target.value })
-              }
-              onKeyDown={(e) => {
-                // Enter inserts a newline (multi-line); Esc cancels the edit.
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setTextEdit(null);
-                }
-              }}
-              className="absolute m-0 resize-none overflow-hidden whitespace-pre border border-dashed border-[var(--vp-accent)] bg-transparent p-0 outline-none"
-              style={{
-                left: textEdit.cx * zoom,
-                top: textEdit.cy * zoom,
-                width: box.w * zoom + 6,
-                height: box.h * zoom,
-                color: color1,
-                font: fontString(textStyle, zoom),
-                lineHeight: `${lineHeightPx}px`,
-                textDecorationLine:
-                  `${textStyle.underline ? "underline " : ""}${
-                    textStyle.strike ? "line-through" : ""
-                  }`.trim() || "none",
-              }}
-            />
+            <>
+              <div
+                title="Drag to move the text"
+                onPointerDown={onTextHandleDown}
+                onPointerMove={onTextHandleMove}
+                onPointerUp={onTextHandleUp}
+                onPointerCancel={onTextHandleUp}
+                className="absolute z-20 flex select-none items-center justify-center rounded-t bg-[var(--vp-accent)] text-[9px] leading-none text-white"
+                style={{
+                  left: textEdit.cx * zoom,
+                  top: textEdit.cy * zoom - 15,
+                  width: Math.max(box.w * zoom + 6, 30),
+                  height: 15,
+                  cursor: "move",
+                }}
+              >
+                ⠿ move
+              </div>
+              <textarea
+                ref={textareaRef}
+                value={textEdit.value}
+                spellCheck={false}
+                wrap="off"
+                onChange={(e) => setTextEdit({ ...textEdit, value: e.target.value })}
+                onKeyDown={(e) => {
+                  // Enter inserts a newline (multi-line); Esc cancels the edit.
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTextEdit(null);
+                  }
+                }}
+                className="absolute m-0 resize-none overflow-hidden whitespace-pre border border-dashed border-[var(--vp-accent)] bg-transparent p-0 outline-none"
+                style={{
+                  left: textEdit.cx * zoom,
+                  top: textEdit.cy * zoom,
+                  width: box.w * zoom + 6,
+                  height: box.h * zoom,
+                  color: color1,
+                  font: fontString(textStyle, zoom),
+                  lineHeight: `${lineHeightPx}px`,
+                  textDecorationLine:
+                    `${textStyle.underline ? "underline " : ""}${
+                      textStyle.strike ? "line-through" : ""
+                    }`.trim() || "none",
+                }}
+              />
+            </>
           )}
         </div>
       </div>
+
+      {/* Eyedropper: the color under the pointer, shown in a square beside the
+          dropper cursor (fixed to the viewport so the work-area scroll doesn't
+          clip it). */}
+      {dropper && (
+        <div
+          data-testid="dropper-swatch"
+          className="pointer-events-none fixed z-50 h-7 w-7 rounded border-2 border-white shadow-md ring-1 ring-black/40"
+          style={{ left: dropper.cx + 20, top: dropper.cy + 6, background: dropper.color }}
+        />
+      )}
     </div>
   );
 }

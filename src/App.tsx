@@ -11,7 +11,6 @@ import { Toolbar } from "./components/Toolbar";
 import { CanvasStage } from "./components/CanvasStage";
 import { StatusBar } from "./components/StatusBar";
 import { ResizeDialog } from "./components/dialogs/ResizeDialog";
-import { SaveDialog } from "./components/dialogs/SaveDialog";
 
 // Single-key tool shortcuts (no modifier). These live in a keydown handler
 // rather than the menu because single-key menu accelerators would hijack every
@@ -136,7 +135,6 @@ function App() {
       <CanvasStage />
       <StatusBar />
       <ResizeDialog />
-      <SaveDialog />
     </div>
   );
 }

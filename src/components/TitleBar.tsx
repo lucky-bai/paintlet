@@ -1,4 +1,5 @@
 import { usePaintStore } from "../state/store";
+import { Logo } from "./Logo";
 
 // Slim draggable strip under the traffic lights. With titleBarStyle "Overlay"
 // the window content extends to the top edge and the traffic lights float over
@@ -12,8 +13,9 @@ export function TitleBar() {
   return (
     <div
       data-tauri-drag-region
-      className="flex h-7 shrink-0 items-center justify-center bg-surface text-xs text-ink-muted"
+      className="flex h-7 shrink-0 items-center justify-center gap-1.5 bg-surface text-xs text-ink-muted"
     >
+      <Logo size={15} />
       <span data-tauri-drag-region>
         {isDirty ? "• " : ""}VibePaint — {name}
       </span>

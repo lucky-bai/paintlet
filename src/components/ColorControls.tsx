@@ -1,20 +1,13 @@
 import { useEffect, useState } from "react";
 import { usePaintStore } from "../state/store";
 import { cx } from "../lib/cx";
+import { PALETTE } from "../lib/palette";
 import { Icon } from "./Icon";
 import { ColorPicker } from "./ColorPicker";
 
-// Classic MS Paint default palette (two rows of ten).
-const PALETTE = [
-  "#000000", "#7f7f7f", "#880015", "#ed1c24", "#ff7f27",
-  "#fff200", "#22b14c", "#00a2e8", "#3f48cc", "#a349a4",
-  "#ffffff", "#c3c3c3", "#b97a57", "#ffaec9", "#ffc90e",
-  "#efe4b0", "#b5e61d", "#99d9ea", "#7092be", "#c8bfe7",
-];
-
-// Color 1 / Color 2 swatches + the palette grid. Clicking a swatch opens an
-// in-app picker popover (no native system color panel). Left-click a palette
-// chip = Color 1; right-click = Color 2 (kept from Paint).
+// Color 1 / Color 2 swatches + a quick palette grid. Clicking a swatch opens
+// the full color chooser in a popup. Left-click a palette chip = Color 1;
+// right-click = Color 2 (kept from Paint).
 export function ColorControls() {
   const color1 = usePaintStore((s) => s.color1);
   const color2 = usePaintStore((s) => s.color2);
@@ -42,19 +35,17 @@ export function ColorControls() {
           ? "Color 1 (foreground) — click to edit"
           : "Color 2 (background) — click to edit"
       }
-      onClick={() => setEditing((e) => (e === which ? null : which))}
+      onClick={() => setEditing(which)}
       className={cx(
         "h-8 w-8 rounded-md border shadow-sm",
-        editing === which
-          ? "border-accent ring-2 ring-accent/50"
-          : "border-hairline",
+        editing === which ? "border-accent ring-2 ring-accent/50" : "border-hairline",
       )}
       style={{ background: which === "color1" ? color1 : color2 }}
     />
   );
 
   return (
-    <div className="relative flex items-center gap-3">
+    <div className="flex items-center gap-3">
       <div className="flex items-center gap-1.5">
         <Swatch which="color1" />
         <Swatch which="color2" />
@@ -69,7 +60,7 @@ export function ColorControls() {
         </button>
       </div>
 
-      {/* Palette grid: left-click → Color 1, right-click → Color 2. */}
+      {/* Quick palette grid: left-click → Color 1, right-click → Color 2. */}
       <div className="grid grid-cols-10 gap-1">
         {PALETTE.map((c) => (
           <button
@@ -87,19 +78,34 @@ export function ColorControls() {
         ))}
       </div>
 
+      {/* Full color chooser, shown as a centered popup. */}
       {editing && (
-        <>
-          {/* Outside-click catcher. */}
-          <div className="fixed inset-0 z-40" onClick={() => setEditing(null)} />
-          <div className="absolute right-0 top-full z-50 mt-2 rounded-lg border border-hairline bg-surface p-3 shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+          onMouseDown={() => setEditing(null)}
+        >
+          <div
+            className="rounded-xl border border-hairline bg-surface p-4 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-ink">
+                Edit {editing === "color1" ? "Color 1" : "Color 2"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded-md bg-[var(--vp-accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
+              >
+                Done
+              </button>
+            </div>
             <ColorPicker
               value={editing === "color1" ? color1 : color2}
-              onChange={(hex) =>
-                editing === "color1" ? setColor1(hex) : setColor2(hex)
-              }
+              onChange={(hex) => (editing === "color1" ? setColor1(hex) : setColor2(hex))}
             />
           </div>
-        </>
+        </div>
       )}
     </div>
   );
