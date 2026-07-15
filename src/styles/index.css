@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * VibePaint theme tokens.
+ * Paintlet theme tokens.
  *
  * Windows 11 Paint layout, macOS clothing. All surface/text/accent colors are
  * defined here as CSS variables so components stay theme-agnostic — they read

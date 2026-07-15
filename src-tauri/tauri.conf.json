@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "vibepaint",
+  "productName": "paintlet",
   "version": "0.1.0",
-  "identifier": "io.efficientnlp.vibepaint",
+  "identifier": "io.efficientnlp.paintlet",
   "build": {
     "beforeDevCommand": "pnpm dev:web",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "VibePaint",
+        "title": "Paintlet",
         "width": 1200,
         "height": 860,
         "minWidth": 900,

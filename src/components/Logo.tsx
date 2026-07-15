@@ -1,4 +1,4 @@
-// The VibePaint app mark: a paintbrush dipping into a white paint swoosh on a
+// The Paintlet app mark: a paintbrush dipping into a white paint swoosh on a
 // light-blue tile — a nod to MS Paint's brush icon, drawn in the app's own
 // light-blue / black / white palette. Same artwork as the bundle icon
 // (src-tauri/icons), kept here as inline SVG for crisp in-window rendering.

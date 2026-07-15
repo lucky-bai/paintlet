@@ -26,8 +26,8 @@ export async function installAppMenu(): Promise<void> {
   // Deliberately minimal: just Quit. The default Hide / Hide Others / Show All
   // items are dropped — they're clutter for a single-window paint app.
   const appMenu = await Submenu.new({
-    text: "VibePaint",
-    items: [await PredefinedMenuItem.new({ item: "Quit", text: "Quit VibePaint" })],
+    text: "Paintlet",
+    items: [await PredefinedMenuItem.new({ item: "Quit", text: "Quit Paintlet" })],
   });
 
   const fileMenu = await Submenu.new({

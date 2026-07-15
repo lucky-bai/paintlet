@@ -1,8 +1,8 @@
-# VibePaint
+# Paintlet
 
 A MS Paint-style raster editor for macOS. It borrows **Windows 11 Paint's layout and interactions** and renders them in **macOS clothing** — native transparent title bar, SF Pro, system controls, and full dark mode. A Windows Paint user should recognize it in five seconds and still feel it belongs on their Mac.
 
-Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The name nods to its vibecoded origins.
+Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The name is *paint* plus the diminutive *-let* — a small, light paint app.
 
 ## Features
 

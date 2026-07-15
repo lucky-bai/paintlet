@@ -17,7 +17,7 @@ export function TitleBar() {
     >
       <Logo size={15} />
       <span data-tauri-drag-region>
-        {isDirty ? "• " : ""}VibePaint — {name}
+        {isDirty ? "• " : ""}Paintlet — {name}
       </span>
     </div>
   );

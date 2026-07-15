@@ -57,7 +57,7 @@ function App() {
         stageHooks.flushTextEdit?.();
         if (!usePaintStore.getState().isDirty) return; // clean → just close
         const discard = await ask("You have unsaved changes. Close without saving?", {
-          title: "VibePaint",
+          title: "Paintlet",
           kind: "warning",
         });
         if (!discard) event.preventDefault();

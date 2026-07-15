@@ -1,6 +1,6 @@
-# VibePaint — macOS Native App (Tauri) — Build Plan
+# Paintlet — macOS Native App (Tauri) — Build Plan
 
-**VibePaint** — a MS Paint-style raster editor for macOS. The name nods to its vibecoded origins, and it ships under it too. Modern **Windows 11 Paint layout and interactions, rendered in macOS clothing** — familiar skeleton, native skin. HTML `<canvas>` drawing engine, Tauri native shell. Frontend in the stack you know: Vite + React + TypeScript + Tailwind.
+**Paintlet** — a MS Paint-style raster editor for macOS. The name is *paint* plus the diminutive *-let* — a small, light paint app. Modern **Windows 11 Paint layout and interactions, rendered in macOS clothing** — familiar skeleton, native skin. HTML `<canvas>` drawing engine, Tauri native shell. Frontend in the stack you know: Vite + React + TypeScript + Tailwind.
 
 Target user: someone who knows current Windows Paint and is now on a Mac. They should recognize it in five seconds (tools where they expect, behaviors they expect) and feel it belongs on macOS (native window, SF Pro, system controls, dark mode) — never that a Windows app is pretending on their Mac.
 
@@ -31,7 +31,7 @@ Where the app stands today, grouped by state.
 - **Status bar** — live cursor coordinates, image dimensions, and the selection's size while one exists.
 - **Guardrails** — File → New/Open confirm before discarding unsaved changes; a pending text edit is committed (never dropped) by Save / New / Open / closing the window; undo cancels an in-progress multi-gesture shape. Per-tool cursors: precise crosshairs for fill/eyedropper, a circle for the brush, a square for the eraser, and the resize cursor while dragging a canvas or selection grip.
 - **Theme** — light / dark following the macOS appearance, switching live.
-- **Window & canvas** — opens maximized; native transparent title bar (traffic lights) with a draggable strip carrying the VibePaint mark and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
+- **Window & canvas** — opens maximized; native transparent title bar (traffic lights) with a draggable strip carrying the Paintlet mark and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
 - **Brand** — a paintbrush-on-a-light-blue-tile logo (light blue / black / white; a nod to MS Paint, distinct enough), shown in the title bar and used for the bundle icons (generated via `pnpm tauri icon`).
 - **Toolchain** — pnpm; `pnpm dev` launches the full app.
 
@@ -99,7 +99,7 @@ React (chrome + config)  ──►  Zustand (UI state)
 ## 3. Project structure
 
 ```
-vibepaint/
+paintlet/
 ├─ src-tauri/
 │  ├─ src/main.rs                 # window setup, read/write-image commands
 │  ├─ capabilities/default.json   # v2 permissions (dialog, fs)
@@ -298,7 +298,7 @@ Pixel data is deliberately absent — it stays in `CanvasEngine`.
 Windows 11 Paint's layout, wearing macOS. Just window chrome + top toolbar + canvas + status bar — the menus live in the system menu bar, which is the natural Mac arrangement.
 
 ```
-┌─ ● ● ●   VibePaint — untitled.png ──────────────────────────────┐  ← native title bar (traffic lights)
+┌─ ● ● ●   Paintlet — untitled.png ──────────────────────────────┐  ← native title bar (traffic lights)
 ├──────────────────────────────────────────────────────────────────┤
 │ ↩ ↪ │ ✏ 🖌 🪣 A ⌫ 💧 │ ╱ ▭ ○ ⋯ │ Size ▂▃▄▅ │ ■1 ■2  ▪▪▪▪▪▪ ⋯ ＋ │  ← top toolbar (grouped)
 ├──────────────────────────────────────────────────────────────────┤
@@ -424,8 +424,8 @@ engine.snapshot('open');                 // seed history
 ## 11. First commands
 
 ```bash
-npm create tauri-app@latest vibepaint  # choose: React, TypeScript, Vite
-cd vibepaint
+npm create tauri-app@latest paintlet  # choose: React, TypeScript, Vite
+cd paintlet
 npm install
 npm install zustand
 npm install @tauri-apps/plugin-dialog @tauri-apps/plugin-fs

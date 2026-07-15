@@ -2,7 +2,7 @@
 //
 // Every committed action pushes a full-canvas ImageData. Undo/redo is just
 // walking an index over that stack and re-applying a snapshot with putImageData.
-// It's robust precisely because everything in VibePaint ends as pixels — there
+// It's robust precisely because everything in Paintlet ends as pixels — there
 // are no per-tool undo special cases.
 //
 // Memory: an 800×600 snapshot ≈ 1.9 MB; the default cap of 30 ≈ 57 MB. Fine.
