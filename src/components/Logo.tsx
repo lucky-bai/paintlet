@@ -1,12 +1,12 @@
-// The Paintlet app mark: a painter's palette with a brush on a light-blue
-// rounded tile. The artwork lives in public/logo.svg (also the favicon) and is
-// the same composition as the bundle icon (src-tauri/icons), so the in-window
-// mark, the dock icon, and the favicon all match. Pure vector — crisp at any
-// size, from the title bar to a Retina dock.
+// The Paintlet app mark: the pixel-art painter's palette from the original
+// artwork, centered on its light-blue tile. The image lives at public/logo.png
+// (also the favicon) and is the same art the bundle icons (src-tauri/icons)
+// are generated from, so the in-window mark, the dock icon, and the favicon all
+// match.
 export function Logo({ size = 18 }: { size?: number }) {
   return (
     <img
-      src="/logo.svg"
+      src="/logo.png"
       width={size}
       height={size}
       alt=""

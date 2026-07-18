@@ -18,7 +18,7 @@ Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The na
 - **Undo / redo** (⌘Z/⇧⌘Z) backed by a dimension-aware snapshot history that spans resizes and crops.
 - **Native macOS menu bar** (File/Edit/View, with the image operations under Edit; the app menu is About + Settings + Quit, and the system's auto-inserted Edit items — Dictation, Emoji, Writing Tools, AutoFill — are removed) with ⌘-shortcuts and single-key tool shortcuts, a Win11-style grouped ribbon with a compact shapes grid, per-tool width controls (a slider for freehand, fixed presets for shapes), an in-app color chooser popup (spectrum, palette, hex, RGB 0–255), the MS Paint palette, and a status bar with live coordinates, image and selection size, and per-tool hints.
 - **Settings** (⌘,) — appearance (System / Light / Dark) and the default size a new image opens at, both persisted across launches.
-- **Light / dark** theme following the macOS appearance; the window opens maximized; a smooth vector palette logo in the title bar, favicon, and app icons.
+- **Light / dark** theme following the macOS appearance; the window opens maximized; a pixel-art palette logo in the title bar, favicon, and app icons.
 
 Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
 
