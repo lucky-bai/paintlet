@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "paintlet",
+  "productName": "Paintlet",
   "version": "0.1.0",
   "identifier": "io.efficientnlp.paintlet",
   "build": {
@@ -28,13 +28,24 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg"],
+    "category": "GraphicsAndDesign",
+    "publisher": "Bai Li",
+    "homepage": "https://github.com/lucky-bai/paintlet",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "copyright": "© 2026 Bai Li",
+    "shortDescription": "MS Paint-style image editor for macOS",
+    "longDescription": "Paintlet is an MS Paint-style raster image editor for macOS: pencil, brush, shapes, flood fill, text, and selections in a native window.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
   }
 }

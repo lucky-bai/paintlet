@@ -15,7 +15,7 @@ Where the app stands today, grouped by state.
 ### Working
 
 - **Freehand:** pencil (hard-edged), brush (anti-aliased), eraser (hard-edged, square-capped, so erased edges flood-fill cleanly). Left button paints Color 1, right button Color 2; the eraser always paints Color 2 (classic Paint). Continuous width slider (1–64 px).
-- **Shapes:** line, curve, rectangle, rounded rectangle, ellipse / circle, polygon — hard-edged (aliased) outlines, so a flood fill of the interior reaches the border with no halo. A continuous width **slider** (like the freehand tools) sets the stroke width. Straight strokes (line, polygon) are rasterized with an aliased round brush (Bresenham + a disc stamp), so the weight is uniform at every angle — horizontal, vertical, and diagonal all read the same thickness, with no heavier-diagonal effect and no fill leak. Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-shape. The curve is Paint's three gestures (drag the line, then pull two bends) with the curve passing *through* the point you drag and previewing under the cursor between gestures; the polygon is multi-click (drag or click each side; double-click or a click on the first vertex closes it). Shape and freehand previews are coalesced to animation frames, so a fast-moving curve/polygon preview stays smooth.
+- **Shapes:** line, curve, rectangle, rounded rectangle, ellipse / circle, polygon — hard-edged (aliased) outlines, so a flood fill of the interior reaches the border with no halo. Fixed stroke widths — **1 / 3 / 5 / 8 px** buttons (the freehand tools keep their continuous slider). Live overlay preview; **Shift** constrains to 45° / square / circle; **Esc** cancels mid-shape. The curve is Paint's three gestures (drag the line, then pull two bends) with the curve passing *through* the point you drag and previewing under the cursor between gestures; the polygon is multi-click (drag or click each side; double-click or a click on the first vertex closes it). Shape and freehand previews are coalesced to animation frames, so a fast-moving curve/polygon preview stays smooth.
 - **Flood fill** (bucket) — exact-match scanline fill in a single pass. Hard-edged commits seal the whole stroke footprint (not a 50% cutoff) so a thin curved outline stays connected and a fill can't escape through a one-pixel gap — the classic "fill a circle, everything turns one color" leak.
 - **Eyedropper** — samples the pixel into Color 1 (right-click → Color 2), then returns to the previous tool (classic Paint). The eyedropper shows the color under the pointer in a small square beside the cursor. Fill and eyedropper carry tool-shaped cursors — a tilted pouring paint bucket and a pipette — whose hotspot is the exact pixel at the tool's tip (not a crosshair).
 - **Text** — multi-line editor with an editable font combobox (any installed font can be typed; a broad macOS list is suggested, and the full installed set is offered where the Local Font Access API is available), a size field with large ± steppers, and bold / italic / underline / strikethrough; typed in Color 1. The floating box has a grab bar to reposition it before committing, and placing it never scrolls (shifts) the canvas. Rasterized on commit and not re-editable afterward.
@@ -23,7 +23,7 @@ Where the app stands today, grouped by state.
 - **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
 - **Save / Open** — Save is one step: an already-saved file re-writes in place, and a new document opens the native save panel directly, whose file-type popup (PNG or JPEG) chooses the format — no extra in-app dialog. The format follows the chosen extension (default PNG); JPEG encodes at 0.92. Window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
 - **Image ops** — Resize (by pixels or percentage, aspect-locked by default, unlock to stretch, smooth vs nearest resampling), Crop to selection, Flip Horizontal / Vertical, Rotate 90° right / left / 180°, and edge/corner drag handles on the canvas that crop or extend it (white fill, dashed preview). All undoable across the size change.
-- **Native macOS menu bar** — File / Edit / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All. The image operations live under Edit (no separate Image menu), and the system's Dictation / Emoji items are suppressed. The app menu is trimmed to just Quit (Hide / Hide Others / Show All removed).
+- **Native macOS menu bar** — File / Edit / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All. The image operations live under Edit (no separate Image menu). The system's auto-inserted Edit items are gone: Dictation / Emoji & Symbols via their NSUserDefaults switches at startup, Writing Tools / AutoFill stripped from the installed menu (they have no switch). The app menu is About Paintlet + Quit (Hide / Hide Others / Show All removed); About shows the version, a link to the GitHub repo, and the MIT license line.
 - **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
 - **Colors** — MS Paint palette grid, Color 1 / Color 2 swatches, swap, and a full **color chooser** that opens in a popup: a saturation/value rainbow area, a hue slider, the basic palette, and both hex and RGB (0–255) fields. Left-click a palette chip = Color 1, right-click = Color 2.
 - **Zoom & pan** — shortcuts for in / out / reset / fit (⌘+ / ⌘− / ⌘0 / ⌘9), a status-bar slider + %, pinch or ⌘-wheel zoom centered on the cursor, and space-drag / middle-drag panning. The wheel step is small and smooth (delta normalized and clamped, not a single huge jump). 0.25×–8×, crisp `pixelated` scaling.
@@ -32,7 +32,7 @@ Where the app stands today, grouped by state.
 - **Guardrails** — File → New/Open confirm before discarding unsaved changes; a pending text edit is committed (never dropped) by Save / New / Open / closing the window; undo cancels an in-progress multi-gesture shape. Per-tool cursors: precise crosshairs for fill/eyedropper, a circle for the brush, a square for the eraser, and the resize cursor while dragging a canvas or selection grip.
 - **Theme** — light / dark following the macOS appearance, switching live.
 - **Window & canvas** — opens maximized; native transparent title bar (traffic lights) with a draggable strip carrying the Paintlet mark and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
-- **Brand** — a paintbrush-on-a-light-blue-tile logo (light blue / black / white; a nod to MS Paint, distinct enough), shown in the title bar and used for the bundle icons (generated via `pnpm tauri icon`).
+- **Brand** — a pixel-art painter's palette with a brush on a light-blue rounded tile. One artwork everywhere: `public/logo.svg` is the favicon and the title-bar mark, and the same composition (rendered at 1024px) generated the bundle icons via `pnpm tauri icon`.
 - **Toolchain** — pnpm; `pnpm dev` launches the full app.
 
 ### Not yet matching target scope
@@ -122,11 +122,10 @@ paintlet/
 │  │  ├─ StatusBar.tsx            # coords, image + selection size, zoom slider
 │  │  ├─ TitleBar.tsx             # draggable strip under the traffic lights
 │  │  ├─ Icon.tsx                 # inline SVG icon set
-│  │  └─ dialogs/                 # ResizeDialog (Save uses the native panel)
+│  │  └─ dialogs/                 # ResizeDialog, AboutDialog (Save uses the native panel)
 │  ├─ engine/
 │  │  ├─ CanvasEngine.ts          # contexts, commit flow, selection, image ops
 │  │  ├─ History.ts               # undo/redo manager (snapshot-based)
-│  │  ├─ raster.ts                # aliased round-brush polyline rasterizer
 │  │  ├─ selectionHandles.ts      # resize-grip geometry + cursors
 │  │  ├─ coords.ts                # screen↔canvas mapping
 │  │  ├─ floodFill.ts             # scanline exact-match fill
@@ -474,3 +473,28 @@ A pass over the whole app for anything confusing, off-convention for a Windows o
 ### Not observable headlessly
 
 The native-shell items — maximized window, the Edit-menu merge, the Dictation/Emoji suppression, on-disk save, and trackpad-pinch zoom — depend on the Tauri shell and can't be exercised in the headless web build, so they aren't asserted by the e2e suite. They're implemented and wired; confirm with one pass in `pnpm dev`.
+
+## 13. Release readiness
+
+### In place
+
+- **Bundle metadata** (`src-tauri/tauri.conf.json`): product name `Paintlet`, identifier `io.efficientnlp.paintlet`, version, category (Graphics & Design), publisher, homepage, MIT license + `LICENSE` file, copyright, short/long descriptions, minimum macOS 10.15, targets `app` + `dmg`.
+- **Icons**: full set regenerated from the pixel-art palette mark (`pnpm tauri icon`); the same artwork is the favicon (`public/logo.svg`) and the in-window mark (`Logo.tsx`).
+- **About**: Paintlet → About Paintlet shows version, GitHub link, and license.
+- **Menu hygiene**: Dictation / Emoji & Symbols suppressed via NSUserDefaults at startup (the documented AppKit switches; note these are *not* Info.plist keys — an Info.plist approach does nothing). Writing Tools / AutoFill have no such switch and are stripped from the Edit menu after install (`strip_edit_menu_system_items`).
+- **Build**: `pnpm tauri build` produces `src-tauri/target/release/bundle/macos/Paintlet.app` and a `.dmg` beside it in `bundle/dmg/`.
+
+### Needs Bai — signing & distribution
+
+Unsigned builds trigger Gatekeeper's "unidentified developer" block on other Macs (right-click → Open works, but it's hostile for users). To distribute properly:
+
+1. **Apple Developer Program** ($99/yr) — enroll at developer.apple.com with an Apple ID.
+2. **Developer ID Application certificate** — create in Xcode (Settings → Accounts → Manage Certificates) or at developer.apple.com/account/resources/certificates. Install it in the login keychain.
+3. **Code signing** — set `APPLE_SIGNING_IDENTITY="Developer ID Application: <name> (<team id>)"` in the environment when running `pnpm tauri build`; Tauri signs the bundle automatically. (CI instead wants `APPLE_CERTIFICATE` + `APPLE_CERTIFICATE_PASSWORD` — a base64 `.p12` export.)
+4. **Notarization** — also set `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password from appleid.apple.com), and `APPLE_TEAM_ID`; Tauri submits the DMG to Apple's notary service after signing. Without notarization, macOS 15+ shows a scarier block than the classic Gatekeeper one.
+5. **GitHub release CI (optional)** — `tauri-apps/tauri-action` builds and attaches the DMG on tag push; add the five values above as repo secrets.
+
+### Deferred hardening
+
+- **CSP** is `null`. The app loads only local content, so exposure is limited, but a strict production CSP (`default-src 'self'` + blob/data allowances for canvas image I/O) is worth adding once it can be verified in the real shell — the e2e suite runs in a plain browser and wouldn't catch a CSP that breaks open/save.
+- **Auto-updates** (`tauri-plugin-updater`) need an updater keypair and a hosted latest.json; skip until there's a reason to ship updates outside GitHub Releases.
