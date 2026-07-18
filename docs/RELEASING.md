@@ -144,6 +144,7 @@ Then mount it, drag Paintlet to Applications, and launch — there should be no 
   Usual causes: an unsigned nested binary, missing hardened runtime, or a non–Developer ID certificate.
 - **"No 'Developer ID Application' identity"** — the `.p12` imported the wrong certificate type. Re-export a *Developer ID Application* cert **with its private key**.
 - **Gatekeeper blocks the app copied out of the DMG** — the DMG is stapled and the app is notarized, so it validates online on first launch; stapling the DMG is the standard for DMG distribution.
+- **"failed to bundle project: failed to run xattr"** — a `pyenv`/`conda` shim is shadowing the system `xattr` with the Python `xattr` package, which lacks the `-r` flag Tauri's bundler needs. The release script prepends `/usr/bin` to `PATH` to force `/usr/bin/xattr`; if you build with a bare `pnpm tauri build`, prefix it the same way: `PATH="/usr/bin:$PATH" pnpm tauri build …`.
 
 ## 6. CI (optional, later)
 

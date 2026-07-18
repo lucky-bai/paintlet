@@ -69,6 +69,11 @@ rm -rf "src-tauri/target/$TARGET/release/bundle"
 ok "Cleaned"
 
 step "Building + signing $APP_NAME $VERSION ($TARGET)"
+# Tauri's bundler runs `xattr -cr` on the .app to strip extended attributes.
+# Ensure the SYSTEM xattr wins over any pyenv/conda shim on PATH: the Python
+# `xattr` package (installed as a shim) has no -r flag and makes bundling fail
+# with "failed to run xattr".
+export PATH="/usr/bin:$PATH"
 # Tauri signs the .app with hardened runtime using this identity during the build.
 export APPLE_SIGNING_IDENTITY="$IDENTITY"
 pnpm tauri build --target "$TARGET"
