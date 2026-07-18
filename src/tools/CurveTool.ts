@@ -2,12 +2,18 @@ import type { Point } from "../engine/types";
 import { constrainTo45, oddStrokeOffset, roundPoint } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
-// Curve — Paint's three-gesture curve. First drag lays down a straight line
-// (Shift = 45° constrain); the next drag pulls the first bend; the final drag
-// pulls the second bend and commits. Between gestures the pending bend previews
-// under the cursor. Unlike raw Bézier handles, the bends are "pull-through": the
-// curve passes THROUGH the point you drag, so it tracks the cursor like Paint.
-// Esc cancels at any phase.
+// Curve — Paint's three-gesture curve. The first drag lays down a straight line
+// (Shift = 45° constrain). The next two drags each pull one of a cubic Bézier's
+// two control points: the first bends the half nearest the start, the second the
+// half nearest the end. Between gestures the pending control point previews
+// under the cursor.
+//
+// The dragged point IS the control point — the curve leans toward it. An earlier
+// version instead solved for control points that forced the curve to pass
+// *through* the two drag points at t=1/3 and t=2/3; that solve amplifies the
+// drag (~3×) and lets the control points cross over, so ordinary drags folded
+// the curve into a closed oval loop. Direct control points can't do that: the
+// curve stays a clean arc for any reasonable drag. Esc cancels at any phase.
 export class CurveTool implements Tool {
   id = "curve" as const;
   cursor = "crosshair";
@@ -23,7 +29,8 @@ export class CurveTool implements Tool {
     | "bend2" = "idle";
   private a: Point = { x: 0, y: 0 }; // start
   private b: Point = { x: 0, y: 0 }; // end
-  private p1: Point = { x: 0, y: 0 }; // first bend point
+  private cp1: Point = { x: 0, y: 0 }; // first control point (near the start)
+  private cp2: Point = { x: 0, y: 0 }; // second control point (near the end)
   private color = "#000000";
 
   onPointerDown(p: PointerInfo, ctx: ToolContext): void {
@@ -32,47 +39,60 @@ export class CurveTool implements Tool {
       this.a = p.point;
       this.b = p.point;
       this.color = p.button === "secondary" ? ctx.color2 : ctx.color1;
+      this.parkControls();
       this.renderLine(ctx);
     } else if (this.phase === "await1") {
       this.phase = "bend1";
-      this.renderQuad(ctx, p.point);
+      this.cp1 = p.point;
+      this.renderCurve(ctx);
     } else if (this.phase === "await2") {
       this.phase = "bend2";
-      this.renderCubic(ctx, this.p1, p.point);
+      this.cp2 = p.point;
+      this.renderCurve(ctx);
     }
   }
 
   onPointerMove(p: PointerInfo, ctx: ToolContext): void {
     if (this.phase === "line") {
       this.b = p.shiftKey ? constrainTo45(this.a, p.point) : p.point;
+      this.parkControls();
       this.renderLine(ctx);
     } else if (this.phase === "bend1") {
-      this.renderQuad(ctx, p.point);
+      this.cp1 = p.point;
+      this.renderCurve(ctx);
     } else if (this.phase === "bend2") {
-      this.renderCubic(ctx, this.p1, p.point);
+      this.cp2 = p.point;
+      this.renderCurve(ctx);
     }
   }
 
   onPointerUp(p: PointerInfo, ctx: ToolContext): void {
     if (this.phase === "line") {
       this.b = p.shiftKey ? constrainTo45(this.a, p.point) : p.point;
+      this.parkControls();
       this.renderLine(ctx);
       this.phase = "await1";
     } else if (this.phase === "bend1") {
-      this.p1 = p.point;
-      this.renderQuad(ctx, this.p1);
+      this.cp1 = p.point;
+      this.renderCurve(ctx);
       this.phase = "await2";
     } else if (this.phase === "bend2") {
-      this.renderCubic(ctx, this.p1, p.point);
+      this.cp2 = p.point;
+      this.renderCurve(ctx);
       this.reset();
       ctx.commit("curve", true);
     }
   }
 
-  // Preview the pending bend under the cursor between gestures.
+  // Preview the pending control point under the cursor between gestures.
   onPointerHover(p: PointerInfo, ctx: ToolContext): void {
-    if (this.phase === "await1") this.renderQuad(ctx, p.point);
-    else if (this.phase === "await2") this.renderCubic(ctx, this.p1, p.point);
+    if (this.phase === "await1") {
+      this.cp1 = p.point;
+      this.renderCurve(ctx);
+    } else if (this.phase === "await2") {
+      this.cp2 = p.point;
+      this.renderCurve(ctx);
+    }
   }
 
   onKeyDown(e: KeyboardEvent, ctx: ToolContext): void {
@@ -89,40 +109,22 @@ export class CurveTool implements Tool {
     }
   }
 
+  // Park the control points on the straight line at its thirds, so before a bend
+  // the cubic renders as the plain line and each drag starts from neutral.
+  private parkControls(): void {
+    const dx = this.b.x - this.a.x;
+    const dy = this.b.y - this.a.y;
+    this.cp1 = { x: this.a.x + dx / 3, y: this.a.y + dy / 3 };
+    this.cp2 = { x: this.a.x + (2 * dx) / 3, y: this.a.y + (2 * dy) / 3 };
+  }
+
   private renderLine(ctx: ToolContext): void {
     this.stroke(ctx, (o, _a, b) => o.lineTo(b.x, b.y));
   }
 
-  // Quadratic passing through `mid` at its midpoint: control = 2·mid − (a+b)/2.
-  private renderQuad(ctx: ToolContext, mid: Point): void {
-    const cp = {
-      x: 2 * mid.x - (this.a.x + this.b.x) / 2,
-      y: 2 * mid.y - (this.a.y + this.b.y) / 2,
-    };
-    this.stroke(ctx, (o, _a, b) => o.quadraticCurveTo(cp.x, cp.y, b.x, b.y));
-  }
-
-  // Cubic passing through p1 at t=1/3 and p2 at t=2/3 (solve for the two
-  // control points so the curve tracks both drag points, not just leans toward
-  // them).
-  private renderCubic(ctx: ToolContext, p1: Point, p2: Point): void {
-    const A = this.a;
-    const B = this.b;
-    const u = {
-      x: p1.x - (8 / 27) * A.x - (1 / 27) * B.x,
-      y: p1.y - (8 / 27) * A.y - (1 / 27) * B.y,
-    };
-    const v = {
-      x: p2.x - (1 / 27) * A.x - (8 / 27) * B.x,
-      y: p2.y - (1 / 27) * A.y - (8 / 27) * B.y,
-    };
-    const a = 4 / 9;
-    const b = 2 / 9;
-    const det = a * a - b * b;
-    const cp1 = { x: (a * u.x - b * v.x) / det, y: (a * u.y - b * v.y) / det };
-    const cp2 = { x: (a * v.x - b * u.x) / det, y: (a * v.y - b * u.y) / det };
-    this.stroke(ctx, (o, _a, bb) =>
-      o.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, bb.x, bb.y),
+  private renderCurve(ctx: ToolContext): void {
+    this.stroke(ctx, (o, _a, b) =>
+      o.bezierCurveTo(this.cp1.x, this.cp1.y, this.cp2.x, this.cp2.y, b.x, b.y),
     );
   }
 
