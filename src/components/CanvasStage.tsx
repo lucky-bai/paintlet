@@ -792,7 +792,7 @@ export function CanvasStage() {
                 onPointerMove={onTextHandleMove}
                 onPointerUp={onTextHandleUp}
                 onPointerCancel={onTextHandleUp}
-                className="absolute z-20 flex select-none items-center justify-center rounded-t bg-[var(--vp-accent)] text-[9px] leading-none text-white"
+                className="absolute z-20 flex select-none items-center justify-center rounded-t bg-ink-muted text-[9px] leading-none text-white"
                 style={{
                   left: textEdit.cx * zoom,
                   top: textEdit.cy * zoom - 15,
@@ -801,7 +801,7 @@ export function CanvasStage() {
                   cursor: "move",
                 }}
               >
-                ⠿ move
+                ⠿
               </div>
               <textarea
                 ref={textareaRef}
@@ -817,7 +817,7 @@ export function CanvasStage() {
                     setTextEdit(null);
                   }
                 }}
-                className="absolute m-0 resize-none overflow-hidden whitespace-pre border border-dashed border-[var(--vp-accent)] bg-transparent p-0 outline-none"
+                className="absolute m-0 resize-none overflow-hidden whitespace-pre border border-dashed border-ink-muted bg-transparent p-0 outline-none"
                 style={{
                   left: textEdit.cx * zoom,
                   top: textEdit.cy * zoom,
