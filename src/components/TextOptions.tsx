@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePaintStore } from "../state/store";
 import { ToolButton } from "./ToolButton";
 
@@ -24,9 +24,10 @@ const clampSize = (n: number) => Math.max(MIN, Math.min(MAX, Math.round(n || MIN
 
 // Editable font combobox that renders every choice in its own typeface, so the
 // list is a live preview of what each font looks like — not just a column of
-// names. Stays a free-text field: typing sets the family even if it isn't in the
-// list, and the native <datalist> can't style options per-font, hence this
-// custom dropdown.
+// names. The dropdown always shows the full list (typing sets the family but
+// never filters the options — you can always browse to any font). Stays a
+// free-text field: typing sets the family even if it isn't in the list, and the
+// native <datalist> can't style options per-font, hence this custom dropdown.
 function FontPicker() {
   const family = usePaintStore((s) => s.textStyle.fontFamily);
   const set = usePaintStore((s) => s.setTextStyle);
@@ -58,15 +59,6 @@ function FontPicker() {
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
-
-  // Filter suggestions by the current text (case-insensitive substring); an
-  // exact match or empty field lists everything.
-  const shown = useMemo(() => {
-    const q = family.trim().toLowerCase();
-    if (!q) return fonts;
-    const hit = fonts.filter((f) => f.toLowerCase().includes(q));
-    return hit.length ? hit : fonts;
-  }, [family, fonts]);
 
   const choose = (f: string) => {
     set({ fontFamily: f });
@@ -100,7 +92,7 @@ function FontPicker() {
           className="absolute left-0 top-full z-50 mt-1 max-h-72 w-56 overflow-auto rounded-md border border-hairline bg-surface-raised py-1 shadow-xl"
           role="listbox"
         >
-          {shown.map((f) => (
+          {fonts.map((f) => (
             <li key={f}>
               <button
                 type="button"

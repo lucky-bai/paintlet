@@ -6,7 +6,7 @@ import { ZOOM_MAX, ZOOM_MIN, clampZoom } from "../lib/zoom";
 // multi-gesture curve, the multi-click polygon, and the selection tools. Shown
 // in the status bar so the behavior is discoverable without a manual.
 const TOOL_HINTS: Partial<Record<ToolId, string>> = {
-  curve: "Drag to draw a line, then drag twice to bend it · Esc cancels",
+  curve: "Click the two ends for a line, then click twice to bend it · Esc cancels",
   polygon:
     "Click to add points · click the first point or double-click to finish · Esc cancels",
   select:

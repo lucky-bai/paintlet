@@ -445,9 +445,39 @@ step("move cursor shows inside a selection", insideCur === "move", `cursor=${ins
 // ── 16. status bar surfaces a per-tool usage hint (curve) ─────────────────
 await page.keyboard.press("c");
 await page.waitForTimeout(30);
-const curveHint = await page.getByText(/drag twice to bend/i).count();
+const curveHint = await page.getByText(/click twice to bend/i).count();
 await page.keyboard.press("p");
 step("status bar shows a per-tool hint (curve)", curveHint === 1, `hintShown=${curveHint}`);
+
+// ── 16b. curve draws a clean arc from four clicks — no loop, no overshoot ──
+// Regression guard: the old drag-based curve turned a quick click into a
+// zero-length line and then drew a Bézier from a point back to itself (a closed
+// loop). Click start, end (forms the line), then two bends pulling the arc up;
+// the result must bow gently above the line and paint nothing below it or far
+// above it (a loop or an amplified control point would).
+await reset();
+await setZoom(1);
+await page.waitForTimeout(30);
+box = await canvasBox();
+await setColor1("#000000");
+await page.keyboard.press("c");
+await setShapeSize(3);
+await clickAt(200, 300); // start
+await page.waitForTimeout(20);
+await clickAt(600, 300); // end → straight line at y=300
+await page.waitForTimeout(20);
+await clickAt(320, 250); // bend 1 (pull up)
+await page.waitForTimeout(20);
+await clickAt(480, 250); // bend 2 (pull up) → commit
+await page.waitForTimeout(40);
+const arcApex = await countPx(0, 350, 248, 100, 46, "dark"); // bowed-up middle (~400,262)
+const belowLine = await countPx(0, 200, 320, 400, 120, "dark"); // a loop would dip below
+const wayAbove = await countPx(0, 200, 180, 400, 55, "dark"); // amplified controls overshoot
+step(
+  "curve draws a clean arc from four clicks (no loop, no overshoot)",
+  arcApex > 30 && belowLine === 0 && wayAbove === 0,
+  `apex=${arcApex} below=${belowLine} above=${wayAbove}`,
+);
 
 // ── 17. eyedropper shows the sampled color in a swatch beside the pointer ──
 await reset();

@@ -2,80 +2,70 @@ import type { Point } from "../engine/types";
 import { constrainTo45, oddStrokeOffset, roundPoint } from "./shapes";
 import type { PointerInfo, Tool, ToolContext } from "./Tool";
 
-// Curve — Paint's three-gesture curve. The first drag lays down a straight line
-// (Shift = 45° constrain). The next two drags each pull one of a cubic Bézier's
-// two control points: the first bends the half nearest the start, the second the
-// half nearest the end. Between gestures the pending control point previews
-// under the cursor.
+// Curve — Paint's curve as a four-click gesture. Click the start, then click the
+// end: that lays down a straight line (Shift = 45° constrain). Then click twice
+// more, each click pulling one of a cubic Bézier's two control points — the first
+// bends the half nearest the start, the second the half nearest the end. Between
+// clicks the pending point previews under the cursor, so you always see the line
+// or curve you're about to commit. Esc cancels at any phase.
 //
-// The dragged point IS the control point — the curve leans toward it. An earlier
-// version instead solved for control points that forced the curve to pass
-// *through* the two drag points at t=1/3 and t=2/3; that solve amplifies the
-// drag (~3×) and lets the control points cross over, so ordinary drags folded
-// the curve into a closed oval loop. Direct control points can't do that: the
-// curve stays a clean arc for any reasonable drag. Esc cancels at any phase.
+// Two design notes, both fixes for real bugs:
+//   • Click-based, not drag-based. Every point is placed on pointer-UP, and phases
+//     never advance on pointer-DOWN. An earlier drag-based version treated a quick
+//     click as a zero-length line and jumped straight to the bend phase, so the
+//     next hover drew a Bézier from a point back to itself — a closed loop. Placing
+//     on release means one click = one point, and the line phase only ever draws a
+//     straight line.
+//   • The dragged point IS the control point — the curve leans toward it. An even
+//     earlier version solved for control points that forced the curve *through* two
+//     points at t=1/3 and t=2/3; that solve amplifies the input ~3× and lets the
+//     control points cross, folding ordinary input into an oval loop. Direct
+//     control points can't do that: the curve stays a clean arc.
 export class CurveTool implements Tool {
   id = "curve" as const;
   cursor = "crosshair";
 
-  // idle → line(drag) → await1(hover) → bend1(drag) → await2(hover) →
-  // bend2(drag) → commit.
-  private phase:
-    | "idle"
-    | "line"
-    | "await1"
-    | "bend1"
-    | "await2"
-    | "bend2" = "idle";
+  // What the NEXT click will place:
+  //   idle  → the start point (a)
+  //   line  → the end point (b), finishing the straight line
+  //   bend1 → the first control point (cp1)
+  //   bend2 → the second control point (cp2), then commit
+  private phase: "idle" | "line" | "bend1" | "bend2" = "idle";
   private a: Point = { x: 0, y: 0 }; // start
   private b: Point = { x: 0, y: 0 }; // end
   private cp1: Point = { x: 0, y: 0 }; // first control point (near the start)
   private cp2: Point = { x: 0, y: 0 }; // second control point (near the end)
   private color = "#000000";
 
+  // Capture the paint colour on press (which button decides fg vs bg); points are
+  // placed on release, so the down itself never advances a phase.
   onPointerDown(p: PointerInfo, ctx: ToolContext): void {
     if (this.phase === "idle") {
-      this.phase = "line";
+      this.color = p.button === "secondary" ? ctx.color2 : ctx.color1;
+    }
+  }
+
+  // A click = down then up, so every point lands here — one click, one point.
+  onPointerUp(p: PointerInfo, ctx: ToolContext): void {
+    if (this.phase === "idle") {
       this.a = p.point;
       this.b = p.point;
-      this.color = p.button === "secondary" ? ctx.color2 : ctx.color1;
       this.parkControls();
-      this.renderLine(ctx);
-    } else if (this.phase === "await1") {
+      this.phase = "line";
+      ctx.clearPreview();
+    } else if (this.phase === "line") {
+      const end = p.shiftKey ? constrainTo45(this.a, p.point) : p.point;
+      // Ignore a second click on the start point — a zero-length line has no
+      // curve to shape; keep waiting for a real end point.
+      if (dist(end, this.a) < 1) return;
+      this.b = end;
+      this.parkControls();
       this.phase = "bend1";
+      this.renderLine(ctx);
+    } else if (this.phase === "bend1") {
       this.cp1 = p.point;
-      this.renderCurve(ctx);
-    } else if (this.phase === "await2") {
       this.phase = "bend2";
-      this.cp2 = p.point;
       this.renderCurve(ctx);
-    }
-  }
-
-  onPointerMove(p: PointerInfo, ctx: ToolContext): void {
-    if (this.phase === "line") {
-      this.b = p.shiftKey ? constrainTo45(this.a, p.point) : p.point;
-      this.parkControls();
-      this.renderLine(ctx);
-    } else if (this.phase === "bend1") {
-      this.cp1 = p.point;
-      this.renderCurve(ctx);
-    } else if (this.phase === "bend2") {
-      this.cp2 = p.point;
-      this.renderCurve(ctx);
-    }
-  }
-
-  onPointerUp(p: PointerInfo, ctx: ToolContext): void {
-    if (this.phase === "line") {
-      this.b = p.shiftKey ? constrainTo45(this.a, p.point) : p.point;
-      this.parkControls();
-      this.renderLine(ctx);
-      this.phase = "await1";
-    } else if (this.phase === "bend1") {
-      this.cp1 = p.point;
-      this.renderCurve(ctx);
-      this.phase = "await2";
     } else if (this.phase === "bend2") {
       this.cp2 = p.point;
       this.renderCurve(ctx);
@@ -84,12 +74,25 @@ export class CurveTool implements Tool {
     }
   }
 
-  // Preview the pending control point under the cursor between gestures.
+  // Between clicks the button is up: preview the point the next click will place.
   onPointerHover(p: PointerInfo, ctx: ToolContext): void {
-    if (this.phase === "await1") {
+    this.preview(p, ctx);
+  }
+
+  // Same preview during a press-drag, so dragging works too (it just previews the
+  // same point the release will place).
+  onPointerMove(p: PointerInfo, ctx: ToolContext): void {
+    this.preview(p, ctx);
+  }
+
+  private preview(p: PointerInfo, ctx: ToolContext): void {
+    if (this.phase === "line") {
+      this.b = p.shiftKey ? constrainTo45(this.a, p.point) : p.point;
+      this.renderLine(ctx);
+    } else if (this.phase === "bend1") {
       this.cp1 = p.point;
       this.renderCurve(ctx);
-    } else if (this.phase === "await2") {
+    } else if (this.phase === "bend2") {
       this.cp2 = p.point;
       this.renderCurve(ctx);
     }
@@ -155,4 +158,8 @@ export class CurveTool implements Tool {
   private reset(): void {
     this.phase = "idle";
   }
+}
+
+function dist(a: Point, b: Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
