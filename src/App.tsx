@@ -12,6 +12,7 @@ import { CanvasStage } from "./components/CanvasStage";
 import { StatusBar } from "./components/StatusBar";
 import { ResizeDialog } from "./components/dialogs/ResizeDialog";
 import { AboutDialog } from "./components/dialogs/AboutDialog";
+import { SettingsDialog } from "./components/dialogs/SettingsDialog";
 
 // Single-key tool shortcuts (no modifier). These live in a keydown handler
 // rather than the menu because single-key menu accelerators would hijack every
@@ -137,6 +138,7 @@ function App() {
       <StatusBar />
       <ResizeDialog />
       <AboutDialog />
+      <SettingsDialog />
     </div>
   );
 }

@@ -31,6 +31,8 @@ export async function installAppMenu(): Promise<void> {
     items: [
       await item("About Paintlet", undefined, A.openAboutDialog),
       await sep(),
+      await item("Settings…", "CmdOrCtrl+,", A.openSettingsDialog),
+      await sep(),
       await PredefinedMenuItem.new({ item: "Quit", text: "Quit Paintlet" }),
     ],
   });

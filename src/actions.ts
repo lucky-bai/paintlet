@@ -34,7 +34,8 @@ export async function newDocument(): Promise<void> {
     });
     if (!ok) return;
   }
-  engine.newDocument(800, 600);
+  const { w, h } = usePaintStore.getState().defaultCanvasSize;
+  engine.newDocument(w, h);
   usePaintStore.getState().setFilePath(null);
 }
 
@@ -105,6 +106,9 @@ export function deleteSelection(): void {
 // — App —
 export function openAboutDialog(): void {
   usePaintStore.getState().setAboutDialogOpen(true);
+}
+export function openSettingsDialog(): void {
+  usePaintStore.getState().setSettingsDialogOpen(true);
 }
 
 // — Image —
