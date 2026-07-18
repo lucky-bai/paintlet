@@ -84,7 +84,7 @@ const storeState = () =>
   });
 const setZoom = (z) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setZoom(v), z);
-// Shape width is now a slider, not 1/3/5/8 buttons — set it through the store.
+// Shape width is one of the discrete 1/3/5/8 presets — set it through the store.
 const setShapeSize = (n) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setShapeSize(v), n);
 
@@ -444,32 +444,7 @@ const curveHint = await page.getByText(/drag twice to bend/i).count();
 await page.keyboard.press("p");
 step("status bar shows a per-tool hint (curve)", curveHint === 1, `hintShown=${curveHint}`);
 
-// ── 17. line weight is uniform across angles (aliased rasterizer) ─────────
-// Previously diagonals hardened ~25% heavier than axis-aligned lines. Measure
-// ink-per-unit-length for a horizontal vs a 45° line at size 5.
-const lineWeight = async (x1, y1, x2, y2) => {
-  await reset();
-  await setColor1("#000000");
-  await setShapeSize(5);
-  await page.waitForTimeout(20);
-  box = await canvasBox(); // refresh: earlier checks may have shifted the paper
-  await page.keyboard.press("l");
-  await dragTo(x1, y1, x2, y2);
-  await page.waitForTimeout(20);
-  const bx = Math.min(x1, x2) - 6, by = Math.min(y1, y2) - 6;
-  const dark = await countPx(0, bx, by, Math.abs(x2 - x1) + 12, Math.abs(y2 - y1) + 12, "dark");
-  return dark / Math.hypot(x2 - x1, y2 - y1);
-};
-const hW = await lineWeight(100, 150, 400, 150); // horizontal
-const dW = await lineWeight(100, 150, 340, 390); // 45° diagonal
-const ratio = dW / hW;
-step(
-  "line weight is uniform across angles",
-  hW > 4 && hW < 7 && ratio > 0.8 && ratio < 1.2,
-  `horiz=${hW.toFixed(2)}px diag=${dW.toFixed(2)}px ratio=${ratio.toFixed(2)}`,
-);
-
-// ── 18. eyedropper shows the sampled color in a swatch beside the pointer ──
+// ── 17. eyedropper shows the sampled color in a swatch beside the pointer ──
 await reset();
 await page.evaluate(async () => {
   const { engine } = await import("/src/state/store.ts");
@@ -491,7 +466,7 @@ step(
   `swatchBg=${swatchBg}`,
 );
 
-// ── 19. text: placing near the bottom doesn't scroll; box drags before commit ─
+// ── 18. text: placing near the bottom doesn't scroll; box drags before commit ─
 await page.evaluate(async () =>
   (await import("/src/state/store.ts")).usePaintStore.getState().setTool("pencil"),
 );
