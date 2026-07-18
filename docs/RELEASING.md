@@ -6,6 +6,8 @@ Most of this is automated by [`scripts/release.sh`](../scripts/release.sh). The 
 
 ## 1. One-time setup
 
+> **Paintlet's signing identity.** Releases are signed and notarized under **Elaine Ye's (Yinan Ye) Developer ID Application** certificate, Apple Team ID **`R3557XH9FY`**, shared from her Apple Developer account — there is no separate Bai Li Developer ID. Signed releases therefore show **"Yinan Ye"** as the verified developer in Gatekeeper. The credentials themselves (her Apple ID and an app-specific password) live only in the local login keychain as the `paintlet-notary` profile and are **never committed to this repo**. The identity name and Team ID above are not secret — they are embedded in every signed build and visible via `codesign -dv`. If you set up your own account instead, substitute your own values throughout.
+
 ### Apple Developer account + certificate
 
 1. Enroll in the **Apple Developer Program** ($99/yr) at [developer.apple.com](https://developer.apple.com).
@@ -29,7 +31,16 @@ Confirm it landed:
 security find-identity -v -p codesigning | grep "Developer ID Application"
 ```
 
-You should see `Developer ID Application: Bai Li (TEAMID)`. The `TEAMID` in parentheses is your Apple Team ID — you'll need it next.
+You should see `Developer ID Application: Yinan Ye (R3557XH9FY)` (or, for your own account, `Developer ID Application: <name> (<TEAMID>)`). The value in parentheses is the Apple Team ID — you'll need it next.
+
+If the certificate imports but `security find-identity -v -p codesigning` reports **0 valid identities**, the Apple Developer ID intermediate is missing from the keychain — install it once:
+
+```bash
+curl -O https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+security import DeveloperIDG2CA.cer -k ~/Library/Keychains/login.keychain-db
+```
+
+Re-run `find-identity` and it should now report `1 valid identities found`.
 
 ### Store notary credentials
 
@@ -38,12 +49,12 @@ You should see `Developer ID Application: Bai Li (TEAMID)`. The `TEAMID` in pare
 
 ```bash
 xcrun notarytool store-credentials paintlet-notary \
-  --apple-id "you@example.com" \
-  --team-id "TEAMID" \
+  --apple-id "<elaine's apple id>" \
+  --team-id "R3557XH9FY" \
   --password "xxxx-xxxx-xxxx-xxxx"
 ```
 
-The password is saved securely in the keychain; you never type it again.
+Use Elaine's Apple ID and an app-specific password generated from *her* account (the Team ID `R3557XH9FY` belongs to it). The password is saved securely in the keychain; you never type it again, and it is never written to this repo.
 
 ### Rust targets
 
