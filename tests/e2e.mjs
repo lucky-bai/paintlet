@@ -154,21 +154,26 @@ step(
   `darkInWake=${wake} grayFringe=${fringe}`,
 );
 
-// ── 4. eyedropper picks and reverts to the previous tool ──────────────────
+// ── 4. eyedropper picks a color, then switches to the bucket ──────────────
 await page.keyboard.press("p");
 await page.keyboard.press("i");
 await clickAt(120, 120); // black from the filled region
-const cursorAfter = await page
-  .locator("canvas")
-  .nth(1)
-  .evaluate((el) => getComputedStyle(el).cursor);
-await dragTo(500, 400, 540, 400); // pencil should draw again, in black
-const drew = await countPx(0, 500, 396, 40, 8, "dark");
-step(
-  "eyedropper reverts to previous tool",
-  cursorAfter === "crosshair" && drew > 20,
-  `cursor=${cursorAfter.slice(0, 24)} pencilDrew=${drew}`,
+await page.waitForTimeout(30);
+const toolAfterPick = await page.evaluate(
+  async () => (await import("/src/state/store.ts")).usePaintStore.getState().activeToolId,
 );
+// The picked color (black) is now Color 1; a bucket click on the white area
+// floods it black — proving both the tool switch and the sampled color.
+await reset();
+await clickAt(400, 300);
+await page.waitForTimeout(30);
+const bucketFilled = await countPx(0, 380, 280, 40, 40, "dark");
+step(
+  "eyedropper picks then switches to the bucket",
+  toolAfterPick === "fill" && bucketFilled === 1600,
+  `tool=${toolAfterPick} bucketFilled=${bucketFilled}/1600`,
+);
+await reset(); // leave a clean white canvas for the tests below
 
 // ── 5. polygon: multi-click, close on first vertex, Esc cancels a new one ─
 await page.keyboard.press("g");
@@ -247,7 +252,7 @@ await page.waitForTimeout(60);
 
 // ── 8. canvas corner drag-handle grows the canvas; new area is white ──────
 box = await canvasBox();
-const corner = page.locator('div[title="Drag to resize the canvas"]').nth(2);
+const corner = page.locator('[data-dir="se"]');
 const cb = await corner.boundingBox();
 const hx = cb.x + cb.width / 2, hy = cb.y + cb.height / 2;
 await page.mouse.move(hx, hy);

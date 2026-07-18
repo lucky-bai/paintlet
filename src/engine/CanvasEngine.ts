@@ -319,12 +319,31 @@ export class CanvasEngine {
   // newly exposed area painted white — Paint's drag-handle resize. No scaling:
   // that's resizeImage below.
   setCanvasSize(width: number, height: number): void {
-    if (width === this.width && height === this.height) return;
+    this.setCanvasSizeAnchored(width, height, 0, 0);
+  }
+
+  // Like setCanvasSize, but places the existing pixels at (offsetX, offsetY) in
+  // the new canvas. Dragging a right/bottom handle keeps content at the origin
+  // (offset 0,0); dragging a top/left handle shifts content down/right (or crops
+  // it) so the opposite, anchored edge stays put. Newly exposed area is white.
+  setCanvasSizeAnchored(
+    width: number,
+    height: number,
+    offsetX: number,
+    offsetY: number,
+  ): void {
+    if (
+      width === this.width &&
+      height === this.height &&
+      offsetX === 0 &&
+      offsetY === 0
+    )
+      return;
     this.stampFloatOnly();
     const src = this.copyBase();
     this.applySize(width, height);
     this.fillBase("#ffffff");
-    this.base.drawImage(src, 0, 0);
+    this.base.drawImage(src, offsetX, offsetY);
     this.clearOverlay();
     this.setSelection(null);
     this.clearSelectionLayer();

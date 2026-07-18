@@ -7,7 +7,7 @@ import { getTool, isShapeTool } from "../tools/registry";
 import { clampZoom } from "../lib/zoom";
 import { rgbToHex } from "../engine/color";
 import { sizedCursor } from "../lib/cursors";
-import { HANDLE_CURSOR, selectionHandles } from "../engine/selectionHandles";
+import { HANDLE_CURSOR, selectionHandles, type HandleId } from "../engine/selectionHandles";
 import type { MouseButton, Point, Rect, TextStyle, ToolId } from "../engine/types";
 import type { PointerInfo, ToolContext } from "../tools/Tool";
 
@@ -91,15 +91,20 @@ export function CanvasStage() {
     iy: number;
   } | null>(null);
 
-  // — canvas drag-resize handles (right / bottom / corner of the paper) —
-  // Dragging shows a dashed preview of the target size; the canvas is cropped
-  // or extended (white fill, anchored top-left) on release — as in Win11 Paint.
+  // — canvas drag-resize handles (all four corners + four edges of the paper) —
+  // Dragging shows a dashed preview of the target bounds; the canvas is cropped
+  // or extended (white fill) on release. Right/bottom handles keep the top-left
+  // anchored; top/left handles offset the content so the opposite edge stays
+  // put. The preview rect is in the current canvas's coordinate space, so its
+  // x/y go negative when a top/left handle extends past the origin.
   const [resizePreview, setResizePreview] = useState<{
+    x: number;
+    y: number;
     w: number;
     h: number;
   } | null>(null);
   const resizeDrag = useRef<{
-    axis: "x" | "y" | "xy";
+    dir: HandleId;
     startW: number;
     startH: number;
     sx: number;
@@ -446,31 +451,42 @@ export function CanvasStage() {
     }
   };
 
-  // Canvas-resize handle drag. Pointer capture keeps the gesture alive when
-  // the cursor leaves the little handle; sizes are computed from the total
-  // client-pixel delta divided by zoom, clamped to at least 1×1.
+  // Canvas-resize handle drag. Pointer capture keeps the gesture alive when the
+  // cursor leaves the little handle. Which of the four edges a handle moves is
+  // read from its compass id ("nw" moves top+left, "e" moves right, …). The
+  // returned rect is in the current canvas's coordinate space: x/y are the new
+  // top-left (negative when a top/left handle extends past the origin), so the
+  // draw offset on commit is simply (-x, -y).
   const resizeTarget = (e: React.PointerEvent) => {
     const d = resizeDrag.current!;
     const z = usePaintStore.getState().view.zoom;
-    return {
-      w:
-        d.axis === "y"
-          ? d.startW
-          : Math.max(1, Math.round(d.startW + (e.clientX - d.sx) / z)),
-      h:
-        d.axis === "x"
-          ? d.startH
-          : Math.max(1, Math.round(d.startH + (e.clientY - d.sy) / z)),
-    };
+    const dx = (e.clientX - d.sx) / z;
+    const dy = (e.clientY - d.sy) / z;
+    const { dir } = d;
+    let x0 = dir.includes("w") ? dx : 0;
+    let y0 = dir.includes("n") ? dy : 0;
+    let x1 = d.startW + (dir.includes("e") ? dx : 0);
+    let y1 = d.startH + (dir.includes("s") ? dy : 0);
+    // Never collapse below 1px — push whichever edge is actually being dragged.
+    if (x1 - x0 < 1) {
+      if (dir.includes("w")) x0 = x1 - 1;
+      else x1 = x0 + 1;
+    }
+    if (y1 - y0 < 1) {
+      if (dir.includes("n")) y0 = y1 - 1;
+      else y1 = y0 + 1;
+    }
+    const x = Math.round(x0);
+    const y = Math.round(y0);
+    return { x, y, w: Math.round(x1) - x, h: Math.round(y1) - y };
   };
-  const axisCursor = { x: "ew-resize", y: "ns-resize", xy: "nwse-resize" } as const;
-  const onHandleDown = (axis: "x" | "y" | "xy") => (e: React.PointerEvent) => {
+  const onHandleDown = (dir: HandleId) => (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    resizeDrag.current = { axis, startW: w, startH: h, sx: e.clientX, sy: e.clientY };
-    setResizePreview({ w, h });
-    setCanvasResizeCursor(axisCursor[axis]);
+    resizeDrag.current = { dir, startW: w, startH: h, sx: e.clientX, sy: e.clientY };
+    setResizePreview({ x: 0, y: 0, w, h });
+    setCanvasResizeCursor(HANDLE_CURSOR[dir]);
   };
   const onHandleMove = (e: React.PointerEvent) => {
     if (!resizeDrag.current) return;
@@ -485,7 +501,8 @@ export function CanvasStage() {
     resizeDrag.current = null;
     setResizePreview(null);
     setCanvasResizeCursor(null);
-    if (t.w !== d.startW || t.h !== d.startH) engine.setCanvasSize(t.w, t.h);
+    if (t.w !== d.startW || t.h !== d.startH || t.x !== 0 || t.y !== 0)
+      engine.setCanvasSizeAnchored(t.w, t.h, -t.x, -t.y);
   };
 
   // Esc cancels an in-progress stroke/shape (including a multi-click polygon
@@ -626,11 +643,12 @@ export function CanvasStage() {
     } catch {
       /* capture may already be released */
     }
-    // Classic Paint: after the eyedropper picks, return to the previous tool.
+    // After the eyedropper picks a color, jump straight to the bucket so the
+    // freshly sampled color is ready to fill with — the common pick-then-fill
+    // flow in one step.
     if (activeToolId === "eyedropper") {
-      const s = usePaintStore.getState();
       setDropper(null);
-      s.setTool(s.previousToolId === "eyedropper" ? "pencil" : s.previousToolId);
+      usePaintStore.getState().setTool("fill");
     }
   };
 
@@ -738,33 +756,43 @@ export function CanvasStage() {
             style={{ ...cssSize, imageRendering: "pixelated" }}
           />
 
-          {/* Canvas resize handles (right / bottom / corner), as in Win11
-              Paint: drag to crop or extend the canvas. */}
+          {/* Canvas resize handles on every corner and edge midpoint: drag to
+              crop or extend the canvas. Each grip's compass id drives both its
+              cursor and which edge(s) it moves. */}
           {(
             [
-              ["x", { right: -6, top: "50%", marginTop: -5 }, "ew-resize"],
-              ["y", { bottom: -6, left: "50%", marginLeft: -5 }, "ns-resize"],
-              ["xy", { right: -6, bottom: -6 }, "nwse-resize"],
+              ["nw", { left: -6, top: -6 }],
+              ["n", { top: -6, left: "50%", marginLeft: -5 }],
+              ["ne", { right: -6, top: -6 }],
+              ["e", { right: -6, top: "50%", marginTop: -5 }],
+              ["se", { right: -6, bottom: -6 }],
+              ["s", { bottom: -6, left: "50%", marginLeft: -5 }],
+              ["sw", { left: -6, bottom: -6 }],
+              ["w", { left: -6, top: "50%", marginTop: -5 }],
             ] as const
-          ).map(([axis, pos, cur]) => (
+          ).map(([dir, pos]) => (
             <div
-              key={axis}
+              key={dir}
+              data-dir={dir}
               title="Drag to resize the canvas"
               className="absolute z-10 h-2.5 w-2.5 rounded-[2px] border border-neutral-400 bg-white shadow-sm"
-              style={{ ...pos, cursor: cur }}
-              onPointerDown={onHandleDown(axis)}
+              style={{ ...pos, cursor: HANDLE_CURSOR[dir] }}
+              onPointerDown={onHandleDown(dir)}
               onPointerMove={onHandleMove}
               onPointerUp={onHandleUp}
               onPointerCancel={onHandleUp}
             />
           ))}
 
-          {/* Dashed preview + size badge while a resize handle drags. */}
+          {/* Dashed preview + size badge while a resize handle drags. The rect
+              may start above/left of the paper when a top/left handle grows it. */}
           {resizePreview && (
             <>
               <div
-                className="pointer-events-none absolute left-0 top-0 z-10 border border-dashed border-neutral-500"
+                className="pointer-events-none absolute z-10 border border-dashed border-neutral-500"
                 style={{
+                  left: resizePreview.x * zoom,
+                  top: resizePreview.y * zoom,
                   width: resizePreview.w * zoom,
                   height: resizePreview.h * zoom,
                 }}
@@ -772,8 +800,8 @@ export function CanvasStage() {
               <div
                 className="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-surface px-1.5 py-0.5 text-xs text-ink shadow"
                 style={{
-                  left: resizePreview.w * zoom + 8,
-                  top: resizePreview.h * zoom + 8,
+                  left: (resizePreview.x + resizePreview.w) * zoom + 8,
+                  top: (resizePreview.y + resizePreview.h) * zoom + 8,
                 }}
               >
                 {resizePreview.w} × {resizePreview.h}px
