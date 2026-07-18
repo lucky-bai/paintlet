@@ -46,6 +46,19 @@
   --vp-hover: #ffffff14;
 }
 
+/* Number field with the native up/down spinners suppressed — the Text tool's
+ * size field uses its own large ± steppers instead, so the OS spinners would be
+ * a redundant second control. */
+input[type="number"].no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"].no-spinner::-webkit-outer-spin-button,
+input[type="number"].no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 html,
 body,
 #root {

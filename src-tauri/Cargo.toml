@@ -1,8 +1,10 @@
 [package]
 name = "paintlet"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "MS Paint-style raster image editor for macOS"
+authors = ["Bai Li"]
+license = "MIT"
+repository = "https://github.com/lucky-bai/paintlet"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -25,4 +27,11 @@ tauri-plugin-fs = "2"
 tauri-plugin-clipboard-manager = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# macOS-only: AppKit access for cleaning the system-injected Edit-menu items
+# (Dictation, Emoji, Writing Tools, AutoFill). Same versions tauri itself uses.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSMenu", "NSMenuItem"] }
+objc2-foundation = { version = "0.3", features = ["NSUserDefaults", "NSString"] }
 

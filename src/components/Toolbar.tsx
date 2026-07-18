@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { engine, usePaintStore } from "../state/store";
 import { isImplemented, isShapeTool } from "../tools/registry";
 import type { ToolId } from "../engine/types";
+import { cx } from "../lib/cx";
 import { Icon, type IconName } from "./Icon";
 import { ToolButton } from "./ToolButton";
 import { ColorControls } from "./ColorControls";
@@ -37,6 +38,9 @@ const SHAPE_TOOLS: ToolDef[] = [
   { id: "ellipse", icon: "ellipse", label: "Ellipse", key: "O" },
   { id: "polygon", icon: "polygon", label: "Polygon", key: "G" },
 ];
+
+// Shapes draw at one of a few fixed widths (not the continuous pencil slider).
+const SHAPE_SIZES = [1, 3, 5, 8];
 
 // A labeled ribbon group: content on top, a small caption underneath — the
 // Win11 Paint layout the user asked to get closer to.
@@ -78,15 +82,11 @@ function ToolGrid({ tools }: { tools: ToolDef[] }) {
   );
 }
 
-// A continuous stroke-width slider. Every tool with a size (freehand and
-// shapes) uses this — no more discrete 1/3/5/8 buttons.
-function SizeSlider({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-}) {
+// A continuous stroke-width slider for the freehand tools (pencil / brush /
+// eraser). Shapes use the discrete picker below instead.
+function SizeSlider() {
+  const brushSize = usePaintStore((s) => s.brushSize);
+  const setBrushSize = usePaintStore((s) => s.setBrushSize);
   return (
     <div className="flex items-center gap-2 px-1">
       <input
@@ -94,28 +94,49 @@ function SizeSlider({
         min={1}
         max={64}
         step={1}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={brushSize}
+        onChange={(e) => setBrushSize(Number(e.target.value))}
         className="w-28 accent-[var(--vp-accent)]"
-        title={`${value}px`}
+        title={`${brushSize}px`}
       />
       <span className="w-8 text-right text-xs tabular-nums text-ink-muted">
-        {value}px
+        {brushSize}px
       </span>
     </div>
   );
 }
 
-// The contextual group between Shapes and Colors: text styling for the Text
-// tool, a size slider for shapes and freehand strokes, and nothing for tools
-// with no size (select/lasso/fill/eyedropper).
-function ContextGroup() {
-  const activeToolId = usePaintStore((s) => s.activeToolId);
-  const brushSize = usePaintStore((s) => s.brushSize);
-  const setBrushSize = usePaintStore((s) => s.setBrushSize);
+// Discrete stroke-width picker shown while a shape tool is active.
+function ShapeSizePicker() {
   const shapeSize = usePaintStore((s) => s.shapeSize);
   const setShapeSize = usePaintStore((s) => s.setShapeSize);
+  return (
+    <div className="flex items-center gap-0.5">
+      {SHAPE_SIZES.map((n) => (
+        <button
+          key={n}
+          type="button"
+          title={`${n}px`}
+          onClick={() => setShapeSize(n)}
+          className={cx(
+            "h-7 w-8 rounded-md text-xs tabular-nums",
+            shapeSize === n
+              ? "bg-[var(--vp-accent)] text-white"
+              : "text-ink-muted hover:bg-hover",
+          )}
+        >
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
 
+// The contextual group between Shapes and Colors: text styling for the Text
+// tool, the fixed-width picker for shapes, the continuous slider for freehand
+// strokes, and nothing for tools with no size (select/lasso/fill/eyedropper).
+function ContextGroup() {
+  const activeToolId = usePaintStore((s) => s.activeToolId);
   if (activeToolId === "text")
     return (
       <>
@@ -130,7 +151,7 @@ function ContextGroup() {
       <>
         <Divider />
         <Group label="Size">
-          <SizeSlider value={shapeSize} onChange={setShapeSize} />
+          <ShapeSizePicker />
         </Group>
       </>
     );
@@ -143,7 +164,7 @@ function ContextGroup() {
       <>
         <Divider />
         <Group label="Size">
-          <SizeSlider value={brushSize} onChange={setBrushSize} />
+          <SizeSlider />
         </Group>
       </>
     );

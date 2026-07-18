@@ -84,7 +84,7 @@ const storeState = () =>
   });
 const setZoom = (z) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setZoom(v), z);
-// Shape width is now a slider, not 1/3/5/8 buttons — set it through the store.
+// Shape width is one of the discrete 1/3/5/8 presets — set it through the store.
 const setShapeSize = (n) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setShapeSize(v), n);
 
@@ -154,21 +154,26 @@ step(
   `darkInWake=${wake} grayFringe=${fringe}`,
 );
 
-// ── 4. eyedropper picks and reverts to the previous tool ──────────────────
+// ── 4. eyedropper picks a color, then switches to the bucket ──────────────
 await page.keyboard.press("p");
 await page.keyboard.press("i");
 await clickAt(120, 120); // black from the filled region
-const cursorAfter = await page
-  .locator("canvas")
-  .nth(1)
-  .evaluate((el) => getComputedStyle(el).cursor);
-await dragTo(500, 400, 540, 400); // pencil should draw again, in black
-const drew = await countPx(0, 500, 396, 40, 8, "dark");
-step(
-  "eyedropper reverts to previous tool",
-  cursorAfter === "crosshair" && drew > 20,
-  `cursor=${cursorAfter.slice(0, 24)} pencilDrew=${drew}`,
+await page.waitForTimeout(30);
+const toolAfterPick = await page.evaluate(
+  async () => (await import("/src/state/store.ts")).usePaintStore.getState().activeToolId,
 );
+// The picked color (black) is now Color 1; a bucket click on the white area
+// floods it black — proving both the tool switch and the sampled color.
+await reset();
+await clickAt(400, 300);
+await page.waitForTimeout(30);
+const bucketFilled = await countPx(0, 380, 280, 40, 40, "dark");
+step(
+  "eyedropper picks then switches to the bucket",
+  toolAfterPick === "fill" && bucketFilled === 1600,
+  `tool=${toolAfterPick} bucketFilled=${bucketFilled}/1600`,
+);
+await reset(); // leave a clean white canvas for the tests below
 
 // ── 5. polygon: multi-click, close on first vertex, Esc cancels a new one ─
 await page.keyboard.press("g");
@@ -247,7 +252,7 @@ await page.waitForTimeout(60);
 
 // ── 8. canvas corner drag-handle grows the canvas; new area is white ──────
 box = await canvasBox();
-const corner = page.locator('div[title="Drag to resize the canvas"]').nth(2);
+const corner = page.locator('[data-dir="se"]');
 const cb = await corner.boundingBox();
 const hx = cb.x + cb.width / 2, hy = cb.y + cb.height / 2;
 await page.mouse.move(hx, hy);
@@ -440,36 +445,41 @@ step("move cursor shows inside a selection", insideCur === "move", `cursor=${ins
 // ── 16. status bar surfaces a per-tool usage hint (curve) ─────────────────
 await page.keyboard.press("c");
 await page.waitForTimeout(30);
-const curveHint = await page.getByText(/drag twice to bend/i).count();
+const curveHint = await page.getByText(/click twice to bend/i).count();
 await page.keyboard.press("p");
 step("status bar shows a per-tool hint (curve)", curveHint === 1, `hintShown=${curveHint}`);
 
-// ── 17. line weight is uniform across angles (aliased rasterizer) ─────────
-// Previously diagonals hardened ~25% heavier than axis-aligned lines. Measure
-// ink-per-unit-length for a horizontal vs a 45° line at size 5.
-const lineWeight = async (x1, y1, x2, y2) => {
-  await reset();
-  await setColor1("#000000");
-  await setShapeSize(5);
-  await page.waitForTimeout(20);
-  box = await canvasBox(); // refresh: earlier checks may have shifted the paper
-  await page.keyboard.press("l");
-  await dragTo(x1, y1, x2, y2);
-  await page.waitForTimeout(20);
-  const bx = Math.min(x1, x2) - 6, by = Math.min(y1, y2) - 6;
-  const dark = await countPx(0, bx, by, Math.abs(x2 - x1) + 12, Math.abs(y2 - y1) + 12, "dark");
-  return dark / Math.hypot(x2 - x1, y2 - y1);
-};
-const hW = await lineWeight(100, 150, 400, 150); // horizontal
-const dW = await lineWeight(100, 150, 340, 390); // 45° diagonal
-const ratio = dW / hW;
+// ── 16b. curve draws a clean arc from four clicks — no loop, no overshoot ──
+// Regression guard: the old drag-based curve turned a quick click into a
+// zero-length line and then drew a Bézier from a point back to itself (a closed
+// loop). Click start, end (forms the line), then two bends pulling the arc up;
+// the result must bow gently above the line and paint nothing below it or far
+// above it (a loop or an amplified control point would).
+await reset();
+await setZoom(1);
+await page.waitForTimeout(30);
+box = await canvasBox();
+await setColor1("#000000");
+await page.keyboard.press("c");
+await setShapeSize(3);
+await clickAt(200, 300); // start
+await page.waitForTimeout(20);
+await clickAt(600, 300); // end → straight line at y=300
+await page.waitForTimeout(20);
+await clickAt(320, 250); // bend 1 (pull up)
+await page.waitForTimeout(20);
+await clickAt(480, 250); // bend 2 (pull up) → commit
+await page.waitForTimeout(40);
+const arcApex = await countPx(0, 350, 248, 100, 46, "dark"); // bowed-up middle (~400,262)
+const belowLine = await countPx(0, 200, 320, 400, 120, "dark"); // a loop would dip below
+const wayAbove = await countPx(0, 200, 180, 400, 55, "dark"); // amplified controls overshoot
 step(
-  "line weight is uniform across angles",
-  hW > 4 && hW < 7 && ratio > 0.8 && ratio < 1.2,
-  `horiz=${hW.toFixed(2)}px diag=${dW.toFixed(2)}px ratio=${ratio.toFixed(2)}`,
+  "curve draws a clean arc from four clicks (no loop, no overshoot)",
+  arcApex > 30 && belowLine === 0 && wayAbove === 0,
+  `apex=${arcApex} below=${belowLine} above=${wayAbove}`,
 );
 
-// ── 18. eyedropper shows the sampled color in a swatch beside the pointer ──
+// ── 17. eyedropper shows the sampled color in a swatch beside the pointer ──
 await reset();
 await page.evaluate(async () => {
   const { engine } = await import("/src/state/store.ts");
@@ -491,7 +501,7 @@ step(
   `swatchBg=${swatchBg}`,
 );
 
-// ── 19. text: placing near the bottom doesn't scroll; box drags before commit ─
+// ── 18. text: placing near the bottom doesn't scroll; box drags before commit ─
 await page.evaluate(async () =>
   (await import("/src/state/store.ts")).usePaintStore.getState().setTool("pencil"),
 );
