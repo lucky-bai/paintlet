@@ -4,6 +4,10 @@ A MS Paint-style raster editor for macOS. It borrows **Windows 11 Paint's layout
 
 Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The name is *paint* plus the diminutive *-let* — a small, light paint app.
 
+<p align="center">
+  <img src="docs/screenshot.png" alt="Paintlet editing a drawing of a pig on a hillside, showing the grouped ribbon, color palette, canvas, and status bar" width="820" />
+</p>
+
 ## Features
 
 - Freehand tools: **pencil** (hard-edged), **brush** (anti-aliased), **eraser** (hard, square) — left button paints Color 1, right button Color 2, continuous width slider.
