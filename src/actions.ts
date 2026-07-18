@@ -102,6 +102,11 @@ export function deleteSelection(): void {
   engine.deleteSelection(usePaintStore.getState().color2);
 }
 
+// — App —
+export function openAboutDialog(): void {
+  usePaintStore.getState().setAboutDialogOpen(true);
+}
+
 // — Image —
 export function openResizeDialog(): void {
   usePaintStore.getState().setResizeDialogOpen(true);

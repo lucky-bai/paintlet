@@ -28,6 +28,7 @@ interface PaintState {
   filePath: string | null;
   theme: Theme;
   resizeDialogOpen: boolean;
+  aboutDialogOpen: boolean;
 
   // — mirrored from the engine (menu/button enablement, title dot) —
   isDirty: boolean;
@@ -49,6 +50,7 @@ interface PaintState {
   setTheme: (t: Theme) => void;
   setFilePath: (p: string | null) => void;
   setResizeDialogOpen: (open: boolean) => void;
+  setAboutDialogOpen: (open: boolean) => void;
   setEngineState: (s: {
     canUndo: boolean;
     canRedo: boolean;
@@ -81,6 +83,7 @@ export const usePaintStore = create<PaintState>((set) => ({
   filePath: null,
   theme: "system",
   resizeDialogOpen: false,
+  aboutDialogOpen: false,
 
   isDirty: false,
   canUndo: false,
@@ -113,6 +116,7 @@ export const usePaintStore = create<PaintState>((set) => ({
   setTheme: (t) => set({ theme: t }),
   setFilePath: (p) => set({ filePath: p }),
   setResizeDialogOpen: (open) => set({ resizeDialogOpen: open }),
+  setAboutDialogOpen: (open) => set({ aboutDialogOpen: open }),
   setEngineState: (s) =>
     set({
       canUndo: s.canUndo,

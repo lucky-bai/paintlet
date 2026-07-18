@@ -4,6 +4,7 @@ import {
   PredefinedMenuItem,
   Submenu,
 } from "@tauri-apps/api/menu";
+import { invoke } from "@tauri-apps/api/core";
 import * as A from "../actions";
 
 // Build the native macOS menu bar in JS. Each item's `action` calls straight
@@ -23,11 +24,15 @@ const item = (
 const sep = () => PredefinedMenuItem.new({ item: "Separator" });
 
 export async function installAppMenu(): Promise<void> {
-  // Deliberately minimal: just Quit. The default Hide / Hide Others / Show All
-  // items are dropped — they're clutter for a single-window paint app.
+  // Deliberately minimal: About + Quit. The default Hide / Hide Others / Show
+  // All items are dropped — they're clutter for a single-window paint app.
   const appMenu = await Submenu.new({
     text: "Paintlet",
-    items: [await PredefinedMenuItem.new({ item: "Quit", text: "Quit Paintlet" })],
+    items: [
+      await item("About Paintlet", undefined, A.openAboutDialog),
+      await sep(),
+      await PredefinedMenuItem.new({ item: "Quit", text: "Quit Paintlet" }),
+    ],
   });
 
   const fileMenu = await Submenu.new({
@@ -83,4 +88,10 @@ export async function installAppMenu(): Promise<void> {
     items: [appMenu, fileMenu, editMenu, viewMenu],
   });
   await menu.setAsAppMenu();
+
+  // macOS injects "Writing Tools" / "AutoFill" into any menu titled "Edit"
+  // when it becomes the main menu; there's no defaults switch for them (unlike
+  // Dictation/Emoji, suppressed at startup on the Rust side). Strip them now
+  // that the menu is installed.
+  await invoke("strip_edit_menu_system_items");
 }
