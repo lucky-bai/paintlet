@@ -44,6 +44,8 @@ pnpm tauri build    # produce a macOS app bundle
 pnpm dev:web        # frontend only, in a browser (native menus/dialogs disabled)
 ```
 
+To cut a signed, notarized release DMG for distribution, see [`docs/RELEASING.md`](./docs/RELEASING.md).
+
 ## Tests
 
 ```bash
