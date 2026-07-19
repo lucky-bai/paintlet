@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paintlet — MS Paint, at home on your Mac</title>
+    <meta
+      name="description"
+      content="A small, light MS Paint-style raster editor for macOS. Windows 11 Paint's layout and interactions in native macOS clothing — SF Pro, system controls, and full dark mode."
+    />
+    <link rel="icon" type="image/png" href="assets/logo.png" />
+
+    <!-- Open Graph / social preview -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Paintlet — MS Paint, at home on your Mac" />
+    <meta
+      property="og:description"
+      content="A small, light MS Paint-style raster editor for macOS. Windows 11 Paint's layout, in native macOS clothing."
+    />
+    <meta property="og:image" content="assets/canvas.png" />
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <!-- Sticky translucent nav, macOS-style -->
+    <header class="nav">
+      <div class="nav-inner">
+        <a class="brand" href="#top">
+          <img src="assets/logo.png" alt="Paintlet logo" width="28" height="28" />
+          <span>Paintlet</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#screenshots">Screenshots</a>
+          <a href="https://github.com/lucky-bai/paintlet">GitHub</a>
+          <a class="btn btn-small" href="https://github.com/lucky-bai/paintlet/releases/latest">Download</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- Hero -->
+      <section class="hero">
+        <p class="eyebrow">MS Paint-style editor for macOS</p>
+        <h1>Windows Paint,<br />in macOS clothing.</h1>
+        <p class="lede">
+          A small, light raster editor that borrows <strong>Windows 11 Paint's layout and
+          interactions</strong> — then renders them in <strong>macOS clothing</strong>: a native
+          transparent title bar, SF Pro, system controls, and full dark mode. A Windows Paint user
+          should recognize it in five seconds and still feel it belongs on their Mac.
+        </p>
+
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest">
+            Download for macOS
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/lucky-bai/paintlet">View on GitHub</a>
+        </div>
+        <p class="fineprint">Universal build (Apple Silicon + Intel) · signed &amp; notarized · macOS 10.15+</p>
+
+        <!-- MS Paint palette strip — the same 20 colors the app ships with -->
+        <div class="palette" aria-hidden="true">
+          <span style="background:#000000"></span><span style="background:#7f7f7f"></span
+          ><span style="background:#880015"></span><span style="background:#ed1c24"></span
+          ><span style="background:#ff7f27"></span><span style="background:#fff200"></span
+          ><span style="background:#22b14c"></span><span style="background:#00a2e8"></span
+          ><span style="background:#3f48cc"></span><span style="background:#a349a4"></span
+          ><span style="background:#ffffff"></span><span style="background:#c3c3c3"></span
+          ><span style="background:#b97a57"></span><span style="background:#ffaec9"></span
+          ><span style="background:#ffc90e"></span><span style="background:#efe4b0"></span
+          ><span style="background:#b5e61d"></span><span style="background:#99d9ea"></span
+          ><span style="background:#7092be"></span><span style="background:#c8bfe7"></span>
+        </div>
+
+        <figure class="hero-shot">
+          <img
+            src="assets/canvas.png"
+            alt="Paintlet editing a drawing of a pig on a hillside, showing the grouped ribbon, color palette, canvas, and status bar"
+            width="1300"
+            height="946"
+          />
+        </figure>
+      </section>
+
+      <!-- Features -->
+      <section id="features" class="section">
+        <h2>Everything you'd reach for</h2>
+        <p class="section-sub">
+          The full Paint tool set — no layers, no alpha, no AI. Small on purpose.
+        </p>
+
+        <div class="grid">
+          <article class="card">
+            <span class="swatch" style="background:#000000"></span>
+            <h3>Freehand</h3>
+            <p>Pencil, brush, and eraser with a continuous width slider; left button paints Color 1, right paints Color 2.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#ed1c24"></span>
+            <h3>Shapes</h3>
+            <p>Line, curve, rectangle, rounded rectangle, ellipse, and polygon at four widths. Shift constrains to 45°/square/circle.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#ff7f27"></span>
+            <h3>Fill &amp; eyedropper</h3>
+            <p>Leak-tight flood fill, plus a color picker that shows the sampled color under the cursor.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#fff200"></span>
+            <h3>Text</h3>
+            <p>Multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough; reposition before committing.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#22b14c"></span>
+            <h3>Selection</h3>
+            <p>Rectangular marquee or free-form lasso, with move, eight-grip resize, and transparent backgrounds — never a solid block.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#00a2e8"></span>
+            <h3>Clipboard</h3>
+            <p>Copy / cut / paste (⌘C / ⌘X / ⌘V) through the system clipboard.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#3f48cc"></span>
+            <h3>Save / Open</h3>
+            <p>One-step save as PNG or JPEG; the title bar tracks the file and any unsaved changes.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#a349a4"></span>
+            <h3>Image ops</h3>
+            <p>Resize, crop, flip, rotate, and drag any canvas edge to crop or extend — all undoable.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#b97a57"></span>
+            <h3>Zoom &amp; pan</h3>
+            <p>0.25×–8× crisp pixelated scaling, fit-to-window, pinch / ⌘-wheel zoom, and space-drag panning.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#7092be"></span>
+            <h3>Undo / redo</h3>
+            <p>⌘Z / ⇧⌘Z across every edit, including resizes and crops.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#99d9ea"></span>
+            <h3>Native macOS UI</h3>
+            <p>A real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.</p>
+          </article>
+          <article class="card">
+            <span class="swatch" style="background:#c8bfe7"></span>
+            <h3>Settings &amp; theme</h3>
+            <p>⌘, for System / Light / Dark appearance and a default new-image size — both persisted.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Screenshots -->
+      <section id="screenshots" class="section section-alt">
+        <h2>A closer look</h2>
+        <p class="section-sub">Familiar interactions, native controls, and pixel-level precision.</p>
+
+        <div class="shots">
+          <figure class="shot">
+            <img src="assets/resize.png" alt="The Resize image dialog with pixel and percent modes, aspect-ratio lock, and smooth resampling" loading="lazy" />
+            <figcaption>
+              <strong>Image ops.</strong> Resize by pixels or percent, lock the aspect ratio, and
+              resample smoothly. Every op — resize, crop, flip, rotate — is undoable.
+            </figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/selection.png" alt="A rectangular selection marquee with eight resize grips, zoomed to 300 percent" loading="lazy" />
+            <figcaption>
+              <strong>Selection.</strong> Rectangular marquee or free-form lasso, with move and
+              eight-grip resize. Zoom to 8× for crisp, pixelated precision.
+            </figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/color-picker.png" alt="The in-app Edit Color picker with an HSV field, hue slider, MS Paint palette, and hex and RGB inputs" loading="lazy" />
+            <figcaption>
+              <strong>Colors.</strong> An in-app picker with the full MS Paint palette, an HSV
+              field, and hex / RGB inputs — set Color 1 and Color 2 to anything.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- Tech stack -->
+      <section class="section">
+        <h2>Built the honest way</h2>
+        <p class="section-sub">
+          An HTML <code>&lt;canvas&gt;</code> drawing engine inside a Tauri native shell.
+        </p>
+        <div class="stack">
+          <div class="stack-item"><h3>Tauri v2</h3><p>Rust shell — native window, menus, file dialogs, app bundle.</p></div>
+          <div class="stack-item"><h3>React 19 + Vite</h3><p>TypeScript frontend, typechecked and bundled on every PR.</p></div>
+          <div class="stack-item"><h3>Tailwind v4</h3><p>CSS-first styling with light / dark theme tokens.</p></div>
+          <div class="stack-item"><h3>Zustand</h3><p>UI &amp; config state; pixels live in the canvas engine, never in React.</p></div>
+        </div>
+      </section>
+
+      <!-- Download CTA -->
+      <section class="download">
+        <img src="assets/logo.png" alt="" width="72" height="72" />
+        <h2>Get Paintlet</h2>
+        <p>
+          A universal build, signed and notarized by Apple — no Gatekeeper warning. Open the
+          <code>.dmg</code> and drag Paintlet into your Applications folder.
+        </p>
+        <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest">
+          Download the latest release
+        </a>
+        <p class="fineprint">Requires macOS 10.15 or later.</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        The name is <em>paint</em> plus the diminutive <em>-let</em> — a small, light paint app.
+      </p>
+      <p class="footer-meta">
+        <a href="https://github.com/lucky-bai/paintlet">GitHub</a>
+        <span>·</span>
+        <a href="https://github.com/lucky-bai/paintlet/blob/main/LICENSE">MIT License</a>
+        <span>·</span>
+        <span>© 2026 Bai Li</span>
+      </p>
+    </footer>
+  </body>
+</html>
