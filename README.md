@@ -16,19 +16,18 @@ A **universal** build (Apple Silicon + Intel), signed and notarized by Apple —
 
 ## Features
 
-- Freehand tools: **pencil** (hard-edged), **brush** (anti-aliased), **eraser** (hard, square) — left button paints Color 1, right button Color 2, continuous width slider.
-- Shapes: **line, curve, rectangle, rounded rectangle, ellipse, polygon** at one of four fixed widths (1 / 3 / 5 / 8 px), hard-edged with no fill leak. **Shift** constrains to 45°/square/circle, **Esc** cancels. The curve is click-based — click the two ends to lay the line, then click twice to pull each bend — with the curve tracking the cursor and previewing between clicks; the polygon is multi-click with a rubber-band preview. Previews are animation-frame-coalesced, so they stay smooth.
-- **Flood fill** (bucket) and **eyedropper** — the pencil and shapes render hard-edged and seal their whole footprint, so a fill reaches the border and can't leak through a one-pixel gap in a thin curve. Fill and eyedropper carry tool-shaped cursors — a tilted pouring bucket and a pipette — with the hotspot at the tool's tip; the eyedropper also shows the color under the pointer in a square beside it, and switches to the bucket after picking so the sampled color is ready to fill with.
-- **Text** — multi-line editor with an editable font combobox that previews each choice in its own typeface (any installed font, with a broad macOS list suggested), a size field with large ± steppers, and bold/italic/underline/strikethrough. The floating box has a grab bar to reposition it before committing, and placing it never shifts the canvas. Rasterized on commit; pending text is committed (never dropped) by Save/New/Open/close.
-- **Selection** — rectangular marquee and **free-form lasso** with marching ants along the exact outline; drag to move, **eight grips to resize** (Shift keeps the aspect ratio), **Delete** clears, ⌘A selects all, and the selection survives switching between the two select tools. Selections are **transparent** — the background color drops out when moving or pasting, so a selection never stamps a solid block over what's underneath.
-- **Copy / Cut / Paste** (⌘C/⌘X/⌘V) through the system clipboard; paste drops in a floating selection and grows the canvas if needed.
-- **Save / Open** — Save is one step: the native save panel's file-type popup picks **PNG or JPEG** (the format follows the chosen extension), and an already-saved file re-writes in place; the title bar tracks the file and unsaved changes, and New/Open/close confirm before discarding them.
-- **Image ops** — resize by pixels or percent (aspect-lock, smooth/nearest resampling), crop to selection, flip H/V, rotate 90° right/left/180°, plus **drag handles on every canvas edge and corner** to crop or extend it (top/left handles keep the opposite edge anchored) — all undoable.
-- **Zoom & pan** — 0.25×–8× with crisp `pixelated` scaling: ⌘+/⌘−/⌘0, **⌘9 fit to window**, pinch or ⌘-wheel zoom (smooth, normalized steps) centered on the cursor, space-drag or middle-drag panning, and a status-bar slider.
-- **Undo / redo** (⌘Z/⇧⌘Z) backed by a dimension-aware snapshot history that spans resizes and crops.
-- **Native macOS menu bar** (File/Edit/View, with the image operations under Edit; the app menu is About + Settings + Quit, and the system's auto-inserted Edit items — Dictation, Emoji, Writing Tools, AutoFill — are removed) with ⌘-shortcuts and single-key tool shortcuts, a Win11-style grouped ribbon with a compact shapes grid, per-tool width controls (a slider for freehand, fixed presets for shapes), an in-app color chooser popup (spectrum, palette, hex, RGB 0–255), the MS Paint palette, and a status bar with live coordinates, image and selection size, and per-tool hints.
-- **Settings** (⌘,) — appearance (System / Light / Dark) and the default size a new image opens at, both persisted across launches.
-- **Light / dark** theme following the macOS appearance; the window opens maximized; a pixel-art palette logo in the title bar and favicon, reshaped into the native macOS squircle for the app/dock icon.
+- **Freehand** — pencil, brush, and eraser with a continuous width slider; left button paints Color 1, right paints Color 2.
+- **Shapes** — line, curve, rectangle, rounded rectangle, ellipse, and polygon at four widths. Shift constrains to 45°/square/circle; the curve is click-based (two clicks to place, two to bend).
+- **Fill & eyedropper** — leak-tight flood fill, plus a color picker that shows the sampled color under the cursor.
+- **Text** — multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough; reposition before committing.
+- **Selection** — rectangular marquee or free-form lasso, with move, eight-grip resize, and transparent backgrounds so a selection never stamps a solid block.
+- **Clipboard** — copy / cut / paste (⌘C/⌘X/⌘V) through the system clipboard.
+- **Save / Open** — one-step save as PNG or JPEG; the title bar tracks the file and unsaved changes.
+- **Image ops** — resize, crop, flip, rotate, and drag any canvas edge to crop or extend — all undoable.
+- **Zoom & pan** — 0.25×–8× crisp pixelated scaling, fit-to-window, pinch/⌘-wheel zoom, and space-drag panning.
+- **Undo / redo** — ⌘Z / ⇧⌘Z across every edit, including resizes and crops.
+- **Native macOS UI** — real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
+- **Settings & theme** (⌘,) — System / Light / Dark appearance and default new-image size, both persisted.
 
 Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
 
