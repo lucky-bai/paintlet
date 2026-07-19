@@ -8,6 +8,12 @@ Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The na
   <img src="docs/screenshot.png" alt="Paintlet editing a drawing of a pig on a hillside, showing the grouped ribbon, color palette, canvas, and status bar" width="820" />
 </p>
 
+## Download
+
+[**Download the latest Paintlet for macOS →**](https://github.com/lucky-bai/paintlet/releases/latest)
+
+A **universal** build (Apple Silicon + Intel), signed and notarized by Apple — no Gatekeeper warning. Open the `.dmg` and drag **Paintlet** into your Applications folder. Requires macOS 10.15 or later.
+
 ## Features
 
 - Freehand tools: **pencil** (hard-edged), **brush** (anti-aliased), **eraser** (hard, square) — left button paints Color 1, right button Color 2, continuous width slider.
