@@ -485,15 +485,11 @@ The native-shell items — maximized window, the Edit-menu merge, the Dictation/
 - **Menu hygiene**: Dictation / Emoji & Symbols suppressed via NSUserDefaults at startup (the documented AppKit switches; note these are *not* Info.plist keys — an Info.plist approach does nothing). Writing Tools / AutoFill have no such switch and are stripped from the Edit menu after install (`strip_edit_menu_system_items`).
 - **Build**: `pnpm tauri build` produces `src-tauri/target/release/bundle/macos/Paintlet.app` and a `.dmg` beside it in `bundle/dmg/`.
 
-### Needs Bai — signing & distribution
+### Signing & distribution
 
-Unsigned builds trigger Gatekeeper's "unidentified developer" block on other Macs (right-click → Open works, but it's hostile for users). To distribute properly:
+Unsigned builds trigger Gatekeeper's "unidentified developer" block on other Macs (right-click → Open works, but it's hostile for users). The full runbook — one-time signing setup, the per-release steps, verification, and troubleshooting — is in [`docs/RELEASING.md`](./docs/RELEASING.md), and the build → sign → notarize → staple → publish pipeline is automated by [`scripts/release.sh`](./scripts/release.sh) (`scripts/release.sh`, or `PUBLISH=1 scripts/release.sh` to cut a GitHub release).
 
-1. **Apple Developer Program** ($99/yr) — enroll at developer.apple.com with an Apple ID.
-2. **Developer ID Application certificate** — create in Xcode (Settings → Accounts → Manage Certificates) or at developer.apple.com/account/resources/certificates. Install it in the login keychain.
-3. **Code signing** — set `APPLE_SIGNING_IDENTITY="Developer ID Application: <name> (<team id>)"` in the environment when running `pnpm tauri build`; Tauri signs the bundle automatically. (CI instead wants `APPLE_CERTIFICATE` + `APPLE_CERTIFICATE_PASSWORD` — a base64 `.p12` export.)
-4. **Notarization** — also set `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password from appleid.apple.com), and `APPLE_TEAM_ID`; Tauri submits the DMG to Apple's notary service after signing. Without notarization, macOS 15+ shows a scarier block than the classic Gatekeeper one.
-5. **GitHub release CI (optional)** — `tauri-apps/tauri-action` builds and attaches the DMG on tag push; add the five values above as repo secrets.
+The setup it assumes: an Apple Developer Program membership, a **Developer ID Application** certificate imported into the login keychain, a `paintlet-notary` credentials profile stored via `notarytool`, and the two universal Rust targets. The script auto-detects the signing identity, builds universal (Intel + Apple Silicon), and notarizes the DMG.
 
 ### Deferred hardening
 
