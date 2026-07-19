@@ -1,4 +1,8 @@
-# Paintlet
+<p align="center">
+  <img src="public/logo.png" alt="Paintlet logo" width="96" height="96" />
+</p>
+
+<h1 align="center">Paintlet</h1>
 
 A MS Paint-style raster editor for macOS. It borrows **Windows 11 Paint's layout and interactions** and renders them in **macOS clothing** — native transparent title bar, SF Pro, system controls, and full dark mode. A Windows Paint user should recognize it in five seconds and still feel it belongs on their Mac.
 

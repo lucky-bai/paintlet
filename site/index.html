@@ -3,19 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Paintlet — MS Paint, at home on your Mac</title>
+    <title>Paintlet — MS Paint-style editor for macOS</title>
     <meta
       name="description"
-      content="A small, light MS Paint-style raster editor for macOS. Windows 11 Paint's layout and interactions in native macOS clothing — SF Pro, system controls, and full dark mode."
+      content="A small, light MS Paint-style raster editor for macOS. Windows 11 Paint's layout and interactions in a native Mac app."
     />
     <link rel="icon" type="image/png" href="assets/logo.png" />
 
     <!-- Open Graph / social preview -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Paintlet — MS Paint, at home on your Mac" />
+    <meta property="og:title" content="Paintlet — MS Paint-style editor for macOS" />
     <meta
       property="og:description"
-      content="A small, light MS Paint-style raster editor for macOS. Windows 11 Paint's layout, in native macOS clothing."
+      content="A small, light MS Paint-style raster editor for macOS."
     />
     <meta property="og:image" content="assets/canvas.png" />
 
@@ -33,8 +33,10 @@
         <nav class="nav-links">
           <a href="#features">Features</a>
           <a href="#screenshots">Screenshots</a>
-          <a href="https://github.com/lucky-bai/paintlet">GitHub</a>
-          <a class="btn btn-small" href="https://github.com/lucky-bai/paintlet/releases/latest">Download</a>
+          <a class="btn btn-small" href="https://github.com/lucky-bai/paintlet/releases/latest">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+            Download
+          </a>
         </nav>
       </div>
     </header>
@@ -42,35 +44,21 @@
     <main id="top">
       <!-- Hero -->
       <section class="hero">
-        <p class="eyebrow">MS Paint-style editor for macOS</p>
-        <h1>Windows Paint,<br />in macOS clothing.</h1>
+        <h1>MS Paint-style editor for macOS</h1>
         <p class="lede">
-          A small, light raster editor that borrows <strong>Windows 11 Paint's layout and
-          interactions</strong> — then renders them in <strong>macOS clothing</strong>: a native
-          transparent title bar, SF Pro, system controls, and full dark mode. A Windows Paint user
-          should recognize it in five seconds and still feel it belongs on their Mac.
+          A small, light raster editor that brings Windows 11 Paint's layout and interactions to a
+          native Mac app.
         </p>
 
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
             Download for macOS
           </a>
-          <a class="btn btn-ghost" href="https://github.com/lucky-bai/paintlet">View on GitHub</a>
-        </div>
-        <p class="fineprint">Universal build (Apple Silicon + Intel) · signed &amp; notarized · macOS 10.15+</p>
-
-        <!-- MS Paint palette strip — the same 20 colors the app ships with -->
-        <div class="palette" aria-hidden="true">
-          <span style="background:#000000"></span><span style="background:#7f7f7f"></span
-          ><span style="background:#880015"></span><span style="background:#ed1c24"></span
-          ><span style="background:#ff7f27"></span><span style="background:#fff200"></span
-          ><span style="background:#22b14c"></span><span style="background:#00a2e8"></span
-          ><span style="background:#3f48cc"></span><span style="background:#a349a4"></span
-          ><span style="background:#ffffff"></span><span style="background:#c3c3c3"></span
-          ><span style="background:#b97a57"></span><span style="background:#ffaec9"></span
-          ><span style="background:#ffc90e"></span><span style="background:#efe4b0"></span
-          ><span style="background:#b5e61d"></span><span style="background:#99d9ea"></span
-          ><span style="background:#7092be"></span><span style="background:#c8bfe7"></span>
+          <a class="btn btn-ghost" href="https://github.com/lucky-bai/paintlet">
+            <svg class="btn-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
+            View on GitHub
+          </a>
         </div>
 
         <figure class="hero-shot">
@@ -85,116 +73,65 @@
 
       <!-- Features -->
       <section id="features" class="section">
-        <h2>Everything you'd reach for</h2>
-        <p class="section-sub">
-          The full Paint tool set — no layers, no alpha, no AI. Small on purpose.
-        </p>
+        <h2>Features</h2>
 
         <div class="grid">
           <article class="card">
-            <span class="swatch" style="background:#000000"></span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5l4 4L8 20l-5 1 1-5 12.5-12.5z" /><path d="M14 6l4 4" /></svg>
             <h3>Freehand</h3>
-            <p>Pencil, brush, and eraser with a continuous width slider; left button paints Color 1, right paints Color 2.</p>
+            <p>Pencil, brush, and eraser with a width slider.</p>
           </article>
           <article class="card">
-            <span class="swatch" style="background:#ed1c24"></span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="8" width="9" height="9" rx="1.5" /><circle cx="16.5" cy="9" r="4.5" /></svg>
             <h3>Shapes</h3>
-            <p>Line, curve, rectangle, rounded rectangle, ellipse, and polygon at four widths. Shift constrains to 45°/square/circle.</p>
+            <p>Lines, curves, rectangles, ellipses, and polygons.</p>
           </article>
           <article class="card">
-            <span class="swatch" style="background:#ff7f27"></span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 11l-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z" /><path d="M5 2l5 5" /><path d="M2 13h15" /><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z" /></svg>
             <h3>Fill &amp; eyedropper</h3>
-            <p>Leak-tight flood fill, plus a color picker that shows the sampled color under the cursor.</p>
+            <p>Leak-tight flood fill and a sampling eyedropper.</p>
           </article>
           <article class="card">
-            <span class="swatch" style="background:#fff200"></span>
-            <h3>Text</h3>
-            <p>Multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough; reposition before committing.</p>
-          </article>
-          <article class="card">
-            <span class="swatch" style="background:#22b14c"></span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5" stroke-dasharray="3.5 3" /></svg>
             <h3>Selection</h3>
-            <p>Rectangular marquee or free-form lasso, with move, eight-grip resize, and transparent backgrounds — never a solid block.</p>
+            <p>Marquee or lasso with move and eight-grip resize.</p>
           </article>
           <article class="card">
-            <span class="swatch" style="background:#00a2e8"></span>
-            <h3>Clipboard</h3>
-            <p>Copy / cut / paste (⌘C / ⌘X / ⌘V) through the system clipboard.</p>
-          </article>
-          <article class="card">
-            <span class="swatch" style="background:#3f48cc"></span>
-            <h3>Save / Open</h3>
-            <p>One-step save as PNG or JPEG; the title bar tracks the file and any unsaved changes.</p>
-          </article>
-          <article class="card">
-            <span class="swatch" style="background:#a349a4"></span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14" /><path d="M18 22V8a2 2 0 0 0-2-2H2" /></svg>
             <h3>Image ops</h3>
-            <p>Resize, crop, flip, rotate, and drag any canvas edge to crop or extend — all undoable.</p>
+            <p>Resize, crop, flip, rotate — all undoable.</p>
           </article>
           <article class="card">
-            <span class="swatch" style="background:#b97a57"></span>
-            <h3>Zoom &amp; pan</h3>
-            <p>0.25×–8× crisp pixelated scaling, fit-to-window, pinch / ⌘-wheel zoom, and space-drag panning.</p>
-          </article>
-          <article class="card">
-            <span class="swatch" style="background:#7092be"></span>
-            <h3>Undo / redo</h3>
-            <p>⌘Z / ⇧⌘Z across every edit, including resizes and crops.</p>
-          </article>
-          <article class="card">
-            <span class="swatch" style="background:#99d9ea"></span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M3 8.5h18" /><circle cx="6" cy="6.25" r=".55" fill="currentColor" stroke="none" /><circle cx="8.2" cy="6.25" r=".55" fill="currentColor" stroke="none" /><circle cx="10.4" cy="6.25" r=".55" fill="currentColor" stroke="none" /></svg>
             <h3>Native macOS UI</h3>
-            <p>A real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.</p>
-          </article>
-          <article class="card">
-            <span class="swatch" style="background:#c8bfe7"></span>
-            <h3>Settings &amp; theme</h3>
-            <p>⌘, for System / Light / Dark appearance and a default new-image size — both persisted.</p>
+            <p>Native menus, a Win11 ribbon, and full dark mode.</p>
           </article>
         </div>
       </section>
 
       <!-- Screenshots -->
       <section id="screenshots" class="section section-alt">
-        <h2>A closer look</h2>
-        <p class="section-sub">Familiar interactions, native controls, and pixel-level precision.</p>
+        <h2>Screenshots</h2>
 
         <div class="shots">
           <figure class="shot">
             <img src="assets/resize.png" alt="The Resize image dialog with pixel and percent modes, aspect-ratio lock, and smooth resampling" loading="lazy" />
             <figcaption>
-              <strong>Image ops.</strong> Resize by pixels or percent, lock the aspect ratio, and
-              resample smoothly. Every op — resize, crop, flip, rotate — is undoable.
+              <strong>Image ops.</strong> Resize by pixels or percent, with aspect-ratio lock.
             </figcaption>
           </figure>
           <figure class="shot">
             <img src="assets/selection.png" alt="A rectangular selection marquee with eight resize grips, zoomed to 300 percent" loading="lazy" />
             <figcaption>
-              <strong>Selection.</strong> Rectangular marquee or free-form lasso, with move and
-              eight-grip resize. Zoom to 8× for crisp, pixelated precision.
+              <strong>Selection.</strong> Marquee or lasso with eight-grip resize, up to 8× zoom.
             </figcaption>
           </figure>
           <figure class="shot">
             <img src="assets/color-picker.png" alt="The in-app Edit Color picker with an HSV field, hue slider, MS Paint palette, and hex and RGB inputs" loading="lazy" />
             <figcaption>
-              <strong>Colors.</strong> An in-app picker with the full MS Paint palette, an HSV
-              field, and hex / RGB inputs — set Color 1 and Color 2 to anything.
+              <strong>Colors.</strong> The full MS Paint palette, an HSV field, and hex / RGB inputs.
             </figcaption>
           </figure>
-        </div>
-      </section>
-
-      <!-- Tech stack -->
-      <section class="section">
-        <h2>Built the honest way</h2>
-        <p class="section-sub">
-          An HTML <code>&lt;canvas&gt;</code> drawing engine inside a Tauri native shell.
-        </p>
-        <div class="stack">
-          <div class="stack-item"><h3>Tauri v2</h3><p>Rust shell — native window, menus, file dialogs, app bundle.</p></div>
-          <div class="stack-item"><h3>React 19 + Vite</h3><p>TypeScript frontend, typechecked and bundled on every PR.</p></div>
-          <div class="stack-item"><h3>Tailwind v4</h3><p>CSS-first styling with light / dark theme tokens.</p></div>
-          <div class="stack-item"><h3>Zustand</h3><p>UI &amp; config state; pixels live in the canvas engine, never in React.</p></div>
         </div>
       </section>
 
@@ -202,14 +139,11 @@
       <section class="download">
         <img src="assets/logo.png" alt="" width="72" height="72" />
         <h2>Get Paintlet</h2>
-        <p>
-          A universal build, signed and notarized by Apple — no Gatekeeper warning. Open the
-          <code>.dmg</code> and drag Paintlet into your Applications folder.
-        </p>
+        <p>Signed and notarized by Apple — a universal build for macOS 10.15 and later.</p>
         <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest">
-          Download the latest release
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+          Download for macOS
         </a>
-        <p class="fineprint">Requires macOS 10.15 or later.</p>
       </section>
     </main>
 
