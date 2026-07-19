@@ -4,6 +4,18 @@
 
 <h1 align="center">Paintlet</h1>
 
+<p align="center">
+  <a href="https://github.com/lucky-bai/paintlet/actions/workflows/ci.yml"><img src="https://github.com/lucky-bai/paintlet/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+  <a href="https://github.com/lucky-bai/paintlet/releases/latest"><img src="https://img.shields.io/github/v/release/lucky-bai/paintlet?label=release" alt="Latest release" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+</p>
+
+<p align="center">
+  <a href="https://lucky-bai.github.io/paintlet/"><strong>Website</strong></a>
+  ·
+  <a href="https://github.com/lucky-bai/paintlet/releases/latest"><strong>Download</strong></a>
+</p>
+
 A MS Paint-style raster editor for macOS. It borrows **Windows 11 Paint's layout and interactions** and renders them in **macOS clothing** — native transparent title bar, SF Pro, system controls, and full dark mode. A Windows Paint user should recognize it in five seconds and still feel it belongs on their Mac.
 
 Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The name is *paint* plus the diminutive *-let* — a small, light paint app.
