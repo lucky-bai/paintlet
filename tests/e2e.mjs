@@ -540,6 +540,62 @@ step(
   `scrollDelta=${scrollAfter - scrollBefore} movedX=${movedX} movedY=${movedY}`,
 );
 
+// ── 22. dialogs drag by their title bar, stay on screen, survive the drag ──
+// The three in-app dialogs (Resize/Settings/Edit Color) share DialogFrame, so
+// exercising one covers the drag for all of them. Three things matter: it
+// actually moves, the click-away scrim doesn't eat the drag and close it, and
+// it can't be flung off-screen where there'd be no header left to grab.
+await reset();
+await action("openResizeDialog");
+await page.waitForTimeout(120);
+const panel = page.locator('div[role="dialog"]');
+const header = panel.locator("h2", { hasText: "Resize image" });
+const grab = async (dx, dy, steps = 8) => {
+  const hb = await header.boundingBox();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2 + dx, hb.y + hb.height / 2 + dy, { steps });
+  await page.mouse.up();
+  await page.waitForTimeout(60);
+};
+
+const dlg0 = await panel.boundingBox();
+await grab(-160, 120);
+const dlg1 = await panel.boundingBox();
+const dragMovedX = Math.round(dlg1.x - dlg0.x);
+const dragMovedY = Math.round(dlg1.y - dlg0.y);
+// Still open: the drag's mousedown landed on the header inside the panel, so the
+// scrim's click-away handler must never have fired.
+const stillOpen = await panel.count();
+
+// Now fling it far past the bottom-right corner and confirm the clamp pins it
+// inside the window instead of letting it leave.
+await grab(4000, 4000, 12);
+const dlg2 = await panel.boundingBox();
+const inBounds =
+  dlg2.y + dlg2.height <= 800 + 2 && dlg2.x + 80 <= 1280 + 2 && dlg2.x < 1280;
+
+step(
+  "dialogs drag by the title bar, stay open, and clamp to the window",
+  dragMovedX < -120 && dragMovedY > 90 && stillOpen === 1 && inBounds,
+  `moved=(${dragMovedX},${dragMovedY}) stillOpen=${stillOpen} clamped=${inBounds} finalRight=${Math.round(dlg2.x)} finalBottom=${Math.round(dlg2.y + dlg2.height)}`,
+);
+
+// ── 23. About is a real OS window, not an in-app panel ────────────────────
+// openAboutWindow invokes a Rust command; under the shim that resolves to null.
+// The assertion is that nothing gets mounted into this document.
+const dialogsBefore = await page.locator('div[role="dialog"]').count();
+await page.keyboard.press("Escape");
+await page.waitForTimeout(80);
+await action("openAboutWindow");
+await page.waitForTimeout(150);
+const aboutInDom = await page.getByText("Released under the MIT License").count();
+step(
+  "About opens as a real window (nothing mounted in the main document)",
+  aboutInDom === 0,
+  `aboutTextInDom=${aboutInDom} dialogsBeforeEsc=${dialogsBefore}`,
+);
+
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });
 await browser.close();
 await server.close();

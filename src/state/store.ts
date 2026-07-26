@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { CanvasEngine } from "../engine/CanvasEngine";
+import { loadSettings, saveSettings } from "./settings";
 import type {
   Point,
   TextStyle,
@@ -13,49 +14,9 @@ import type {
 // every stroke. Components import `engine` directly for imperative calls.
 export const engine = new CanvasEngine();
 
-// — persisted settings (Settings window) —
-// Theme and the default new-image size survive across launches via localStorage.
-// Access is guarded so non-browser contexts (unit tests) never throw.
-const SETTINGS_KEY = "paintlet.settings";
-interface PersistedSettings {
-  theme: Theme;
-  defaultCanvasSize: { w: number; h: number };
-}
-const clampDim = (n: unknown, fallback: number): number => {
-  const v = Math.round(Number(n));
-  return Number.isFinite(v) && v >= 1 && v <= 10000 ? v : fallback;
-};
-function loadSettings(): PersistedSettings {
-  const fallback: PersistedSettings = {
-    theme: "system",
-    defaultCanvasSize: { w: 800, h: 600 },
-  };
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return fallback;
-    const p = JSON.parse(raw) as Partial<PersistedSettings>;
-    const theme =
-      p.theme === "light" || p.theme === "dark" || p.theme === "system"
-        ? p.theme
-        : "system";
-    return {
-      theme,
-      defaultCanvasSize: {
-        w: clampDim(p.defaultCanvasSize?.w, 800),
-        h: clampDim(p.defaultCanvasSize?.h, 600),
-      },
-    };
-  } catch {
-    return fallback;
-  }
-}
-function saveSettings(s: PersistedSettings): void {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-  } catch {
-    /* storage unavailable — settings just won't persist this session */
-  }
-}
+// Theme and the default new-image size are read once at startup and written back
+// on every change; the read/write helpers live in ./settings so the About
+// window's webview can share them without importing the engine.
 const initialSettings = loadSettings();
 
 interface PaintState {
@@ -74,7 +35,6 @@ interface PaintState {
   filePath: string | null;
   theme: Theme;
   resizeDialogOpen: boolean;
-  aboutDialogOpen: boolean;
   settingsDialogOpen: boolean;
 
   // — mirrored from the engine (menu/button enablement, title dot) —
@@ -98,7 +58,6 @@ interface PaintState {
   setDefaultCanvasSize: (size: { w: number; h: number }) => void;
   setFilePath: (p: string | null) => void;
   setResizeDialogOpen: (open: boolean) => void;
-  setAboutDialogOpen: (open: boolean) => void;
   setSettingsDialogOpen: (open: boolean) => void;
   setEngineState: (s: {
     canUndo: boolean;
@@ -133,7 +92,6 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   filePath: null,
   theme: initialSettings.theme,
   resizeDialogOpen: false,
-  aboutDialogOpen: false,
   settingsDialogOpen: false,
 
   isDirty: false,
@@ -174,7 +132,6 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   },
   setFilePath: (p) => set({ filePath: p }),
   setResizeDialogOpen: (open) => set({ resizeDialogOpen: open }),
-  setAboutDialogOpen: (open) => set({ aboutDialogOpen: open }),
   setSettingsDialogOpen: (open) => set({ settingsDialogOpen: open }),
   setEngineState: (s) =>
     set({

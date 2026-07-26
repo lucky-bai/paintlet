@@ -1,4 +1,38 @@
 use tauri::ipc::Response;
+use tauri::Manager;
+
+// Open (or re-focus) the About window.
+//
+// About is the one dialog that's a real OS window rather than an in-app panel:
+// it's the macOS convention for an About box, and it's the only one where that's
+// cheap, since it reads nothing from the editor's canvas state. Created here in
+// Rust rather than from JS so the window is built on demand — declaring it in
+// tauri.conf.json would spin up its webview at launch and pay the memory for a
+// window most sessions never open.
+#[tauri::command]
+fn open_about_window(app: tauri::AppHandle) -> Result<(), String> {
+    // Already open: bring it forward instead of stacking a second copy.
+    if let Some(win) = app.get_webview_window("about") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        return win.set_focus().map_err(|e| e.to_string());
+    }
+
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "about",
+        tauri::WebviewUrl::App("about.html".into()),
+    )
+    .title("About Paintlet")
+    .inner_size(340.0, 360.0)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .center()
+    .build()
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
 
 // Read a file off disk and hand the raw bytes back to the webview as an
 // ArrayBuffer. We go through a Rust command (rather than the fs plugin) so the
@@ -97,7 +131,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_image_file,
             write_image_file,
-            strip_edit_menu_system_items
+            strip_edit_menu_system_items,
+            open_about_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

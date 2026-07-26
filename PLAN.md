@@ -122,7 +122,9 @@ paintlet/
 │  │  ├─ StatusBar.tsx            # coords, image + selection size, zoom slider
 │  │  ├─ TitleBar.tsx             # draggable strip under the traffic lights
 │  │  ├─ Icon.tsx                 # inline SVG icon set
-│  │  └─ dialogs/                 # ResizeDialog, AboutDialog (Save uses the native panel)
+│  │  ├─ AboutWindow.tsx          # contents of the About window (its own webview)
+│  │  └─ dialogs/                 # DialogFrame (draggable chrome) + Resize,
+│  │                              #   Settings (Save uses the native panel)
 │  ├─ engine/
 │  │  ├─ CanvasEngine.ts          # contexts, commit flow, selection, image ops
 │  │  ├─ History.ts               # undo/redo manager (snapshot-based)

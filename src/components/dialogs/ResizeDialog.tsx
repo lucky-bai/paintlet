@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { engine, usePaintStore } from "../../state/store";
 import { cx } from "../../lib/cx";
+import { DialogFrame } from "./DialogFrame";
 
 const MIN = 1;
 const MAX = 8192;
@@ -59,103 +60,97 @@ export function ResizeDialog() {
   };
 
   return (
-    <div
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/30"
-      onMouseDown={close}
+    <DialogFrame
+      title="Resize image"
+      onClose={close}
+      className="w-72"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") apply();
+        else if (e.key === "Escape") close();
+      }}
     >
-      <div
-        className="w-72 rounded-xl border border-hairline bg-surface p-4 shadow-xl"
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") apply();
-          else if (e.key === "Escape") close();
-        }}
-      >
-        <h2 className="mb-3 text-sm font-semibold text-ink">Resize image</h2>
-
-        <div className="mb-3 flex gap-1">
-          {(["px", "pct"] as const).map((u) => (
-            <button
-              key={u}
-              type="button"
-              onClick={() => setUnit(u)}
-              className={cx(
-                "flex-1 rounded-md px-2.5 py-1 text-xs",
-                unit === u
-                  ? "bg-[var(--vp-accent)] text-white"
-                  : "text-ink hover:bg-hover",
-              )}
-            >
-              {u === "px" ? "Pixels" : "Percent"}
-            </button>
-          ))}
-        </div>
-
-        <label className="mb-2 flex items-center justify-between text-xs text-ink-muted">
-          Width
-          <span className="flex items-center gap-1">
-            <input
-              type="number"
-              min={MIN}
-              max={unit === "px" ? MAX : 1000}
-              value={width}
-              autoFocus
-              onChange={(e) => changeW(Number(e.target.value))}
-              className="w-20 rounded border border-hairline bg-work px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
-            />
-            {unit === "px" ? "px" : "%"}
-          </span>
-        </label>
-
-        <label className="mb-3 flex items-center justify-between text-xs text-ink-muted">
-          Height
-          <span className="flex items-center gap-1">
-            <input
-              type="number"
-              min={MIN}
-              max={unit === "px" ? MAX : 1000}
-              value={height}
-              onChange={(e) => changeH(Number(e.target.value))}
-              className="w-20 rounded border border-hairline bg-work px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
-            />
-            {unit === "px" ? "px" : "%"}
-          </span>
-        </label>
-
-        <label className="mb-1.5 flex items-center gap-2 text-xs text-ink">
-          <input
-            type="checkbox"
-            checked={lock}
-            onChange={(e) => setLock(e.target.checked)}
-          />
-          Maintain aspect ratio
-        </label>
-        <label className="mb-4 flex items-center gap-2 text-xs text-ink">
-          <input
-            type="checkbox"
-            checked={smooth}
-            onChange={(e) => setSmooth(e.target.checked)}
-          />
-          Smooth (resample)
-        </label>
-
-        <div className="flex justify-end gap-2">
+      <div className="mb-3 flex gap-1">
+        {(["px", "pct"] as const).map((u) => (
           <button
+            key={u}
             type="button"
-            onClick={close}
-            className="rounded-md px-3 py-1.5 text-xs text-ink hover:bg-hover"
+            onClick={() => setUnit(u)}
+            className={cx(
+              "flex-1 rounded-md px-2.5 py-1 text-xs",
+              unit === u
+                ? "bg-[var(--vp-accent)] text-white"
+                : "text-ink hover:bg-hover",
+            )}
           >
-            Cancel
+            {u === "px" ? "Pixels" : "Percent"}
           </button>
-          <button
-            type="button"
-            onClick={apply}
-            className="rounded-md bg-[var(--vp-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
-          >
-            Resize
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+
+      <label className="mb-2 flex items-center justify-between text-xs text-ink-muted">
+        Width
+        <span className="flex items-center gap-1">
+          <input
+            type="number"
+            min={MIN}
+            max={unit === "px" ? MAX : 1000}
+            value={width}
+            autoFocus
+            onChange={(e) => changeW(Number(e.target.value))}
+            className="w-20 rounded border border-hairline bg-work px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
+          />
+          {unit === "px" ? "px" : "%"}
+        </span>
+      </label>
+
+      <label className="mb-3 flex items-center justify-between text-xs text-ink-muted">
+        Height
+        <span className="flex items-center gap-1">
+          <input
+            type="number"
+            min={MIN}
+            max={unit === "px" ? MAX : 1000}
+            value={height}
+            onChange={(e) => changeH(Number(e.target.value))}
+            className="w-20 rounded border border-hairline bg-work px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
+          />
+          {unit === "px" ? "px" : "%"}
+        </span>
+      </label>
+
+      <label className="mb-1.5 flex items-center gap-2 text-xs text-ink">
+        <input
+          type="checkbox"
+          checked={lock}
+          onChange={(e) => setLock(e.target.checked)}
+        />
+        Maintain aspect ratio
+      </label>
+      <label className="mb-4 flex items-center gap-2 text-xs text-ink">
+        <input
+          type="checkbox"
+          checked={smooth}
+          onChange={(e) => setSmooth(e.target.checked)}
+        />
+        Smooth (resample)
+      </label>
+
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={close}
+          className="rounded-md px-3 py-1.5 text-xs text-ink hover:bg-hover"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={apply}
+          className="rounded-md bg-[var(--vp-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+        >
+          Resize
+        </button>
+      </div>
+    </DialogFrame>
   );
 }
