@@ -415,6 +415,7 @@ Places where Paintlet knowingly departs from a Windows or macOS convention, or w
 | Color picker | The hex field silently ignores invalid input with no feedback. | 2 | 5 | Low impact; a validation cue is a nice-to-have, not a correctness issue. |
 | Canvas | The edge/corner resize handles are 10 px — a small hit target. | 3 | 5 | Enlarging the grab area without making the dots visually heavier needs a little care; low frequency of use. |
 | Eyedropper | What tool to land on after a pick. | 2 | 6 | Switches to the bucket, so the sampled color is ready to fill with in one step. |
+| Save panel | The format popup reads "PNG image" / "JPEG image", not Paint's `JPEG (*.jpg;*.jpeg)` glob style. | 2 | 4 | AppKit owns those titles — `showsContentTypes` derives each from the UTI's `localizedDescription`, with no API to override them. Custom titles would mean dropping it for an accessory view, an `NSPopUpButton`, and a `define_class!` action, then re-implementing the extension rewriting and overwrite confirmation AppKit gives free — ~120 lines of runtime-only-verifiable AppKit for a cosmetic gain. The globs also add little here, since `extensionHidden = false` keeps the extension visible in the name field. |
 
 ### Not observable headlessly
 
