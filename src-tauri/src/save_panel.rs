@@ -42,13 +42,22 @@ pub struct SaveResponse {
 
 impl SaveResponse {
     pub fn unsupported() -> Self {
-        Self { path: None, supported: false }
+        Self {
+            path: None,
+            supported: false,
+        }
     }
     fn cancelled() -> Self {
-        Self { path: None, supported: true }
+        Self {
+            path: None,
+            supported: true,
+        }
     }
     fn chosen(path: String) -> Self {
-        Self { path: Some(path), supported: true }
+        Self {
+            path: Some(path),
+            supported: true,
+        }
     }
 }
 

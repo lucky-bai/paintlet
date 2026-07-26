@@ -20,19 +20,15 @@ fn open_about_window(app: tauri::AppHandle) -> Result<(), String> {
         return win.set_focus().map_err(|e| e.to_string());
     }
 
-    tauri::WebviewWindowBuilder::new(
-        &app,
-        "about",
-        tauri::WebviewUrl::App("about.html".into()),
-    )
-    .title("About Paintlet")
-    .inner_size(340.0, 300.0)
-    .resizable(false)
-    .maximizable(false)
-    .minimizable(false)
-    .center()
-    .build()
-    .map_err(|e| e.to_string())?;
+    tauri::WebviewWindowBuilder::new(&app, "about", tauri::WebviewUrl::App("about.html".into()))
+        .title("About Paintlet")
+        .inner_size(340.0, 300.0)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .center()
+        .build()
+        .map_err(|e| e.to_string())?;
 
     #[cfg(target_os = "macos")]
     hide_minimize_and_zoom(&app, "about");
@@ -50,7 +46,9 @@ fn hide_minimize_and_zoom(app: &tauri::AppHandle, label: &'static str) {
     let _ = app.clone().run_on_main_thread(move || {
         use objc2_app_kit::{NSWindow, NSWindowButton};
 
-        let Some(win) = app.get_webview_window(label) else { return };
+        let Some(win) = app.get_webview_window(label) else {
+            return;
+        };
         let Ok(ptr) = win.ns_window() else { return };
         // SAFETY: ns_window() hands back the NSWindow backing this Tauri
         // window, and we're inside run_on_main_thread — the only place AppKit
@@ -102,8 +100,8 @@ fn save_image_dialog(
         let (tx, rx) = std::sync::mpsc::channel();
         app.run_on_main_thread(move || {
             // On the main thread by construction, so this marker is sound.
-            let mtm = objc2::MainThreadMarker::new()
-                .expect("run_on_main_thread ran off the main thread");
+            let mtm =
+                objc2::MainThreadMarker::new().expect("run_on_main_thread ran off the main thread");
             let _ = tx.send(save_panel::run(mtm, &request));
         })
         .map_err(|e| e.to_string())?;
@@ -147,12 +145,20 @@ fn strip_edit_menu_system_items(app: tauri::AppHandle) {
             use objc2::MainThreadMarker;
             use objc2_app_kit::NSApplication;
 
-            let Some(mtm) = MainThreadMarker::new() else { return };
+            let Some(mtm) = MainThreadMarker::new() else {
+                return;
+            };
             let nsapp = NSApplication::sharedApplication(mtm);
-            let Some(main_menu) = nsapp.mainMenu() else { return };
+            let Some(main_menu) = nsapp.mainMenu() else {
+                return;
+            };
             for i in 0..main_menu.numberOfItems() {
-                let Some(item) = main_menu.itemAtIndex(i) else { continue };
-                let Some(submenu) = item.submenu() else { continue };
+                let Some(item) = main_menu.itemAtIndex(i) else {
+                    continue;
+                };
+                let Some(submenu) = item.submenu() else {
+                    continue;
+                };
                 if submenu.title().to_string() != "Edit" {
                     continue;
                 }
@@ -162,7 +168,9 @@ fn strip_edit_menu_system_items(app: tauri::AppHandle) {
                 // hook. (Dictation/Emoji are already suppressed via the
                 // defaults keys; matching them here is just a backstop.)
                 for j in (0..submenu.numberOfItems()).rev() {
-                    let Some(sub) = submenu.itemAtIndex(j) else { continue };
+                    let Some(sub) = submenu.itemAtIndex(j) else {
+                        continue;
+                    };
                     let title = sub.title().to_string();
                     if title.contains("Writing Tools")
                         || title.contains("AutoFill")

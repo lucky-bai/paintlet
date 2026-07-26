@@ -163,6 +163,7 @@ paintlet/
 │  └─ styles/index.css            # tailwind + theme tokens (light/dark)
 ├─ tests/e2e.mjs                  # headless-browser smoke test
 ├─ .github/workflows/ci.yml       # build → unit tests → e2e on every PR
+├─ .github/workflows/rust.yml     # fmt + clippy on macOS, when src-tauri/ changes
 ├─ vitest.config.ts               # unit tests colocated as src/**/*.test.ts
 ├─ index.html · about.html
 └─ vite.config.ts                 # two rollup inputs: main + about
@@ -417,7 +418,9 @@ Places where Paintlet knowingly departs from a Windows or macOS convention, or w
 
 The native-shell items — maximized window, the Edit-menu merge, the Dictation/Emoji suppression, on-disk save, trackpad-pinch zoom, the About window (its own OS window, with the minimize/zoom buttons hidden via AppKit), and the save panel's format popup — depend on the Tauri shell and can't be exercised in the headless web build, so they aren't asserted by the e2e suite. They're implemented and wired; confirm with one pass in `pnpm dev`.
 
-Note also that **CI does not build the Rust shell** (see the comment at the top of `ci.yml`): it runs typecheck, bundle, unit tests, and e2e only. A green check therefore says nothing about `src-tauri/` — run `cargo check` locally when touching it, and add a Rust job if the shell starts changing often.
+The Rust shell is checked by a **second workflow** (`.github/workflows/rust.yml`) rather than by `ci.yml`, for two reasons: it must run on macOS, since nearly everything in `src-tauri/` that can break sits behind `#[cfg(target_os = "macos")]` and a Linux runner would compile straight past it; and it only needs to run when the shell changes, so it carries a `paths` filter. It runs `cargo fmt --check` and `cargo clippy -- -D warnings` (clippy type-checks as it lints, so a separate `cargo check` would be redundant), and needs no frontend build — `tauri-build` tolerates a missing `../dist` outside a real bundle.
+
+Because of that filter it doesn't run on frontend-only PRs, so it shouldn't be made a *required* check without switching to a always-runs job that skips internally.
 
 ---
 

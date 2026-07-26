@@ -1,0 +1,55 @@
+# Rust shell checks. Deliberately a separate workflow from ci.yml, for two
+# reasons.
+#
+# It has to run on macOS. Almost everything in src-tauri/ that can break is
+# behind #[cfg(target_os = "macos")] — the AppKit menu cleanup, the About
+# window's traffic-light hiding, the save panel's format popup — so a Linux
+# runner would compile right past the risky code and report a meaningless pass.
+#
+# And it only needs to run when the shell changes, which is rarely: the frontend
+# is where the work happens, and a cold Tauri dependency graph is minutes of
+# compile. Hence the paths filter.
+#
+# Note for anyone adding branch protection: because of that filter this workflow
+# does not run on frontend-only PRs, so marking it a *required* check would
+# leave those PRs waiting forever on a job that never starts.
+name: Rust
+
+# The two path lists are duplicated on purpose: GitHub's workflow parser does
+# not support YAML anchors, so an alias here would silently break the trigger.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/rust.yml"
+  pull_request:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/rust.yml"
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # Keyed on Cargo.lock; without it every run recompiles the whole Tauri
+      # tree from scratch.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      # Clippy type-checks as it lints, so this subsumes a separate cargo check.
+      # No frontend build is needed first: tauri-build tolerates a missing
+      # frontendDist (../dist) during a check, and only wants it for a real
+      # bundle.
+      - name: Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings

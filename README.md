@@ -76,7 +76,7 @@ pnpm test:e2e       # headless-browser smoke test: boots the web build and
                     # by reading pixels back off the canvases
 ```
 
-CI (GitHub Actions) runs build → unit tests → e2e on every pull request.
+CI (GitHub Actions) runs build → unit tests → e2e on every pull request, plus `cargo fmt` and `cargo clippy` on macOS whenever `src-tauri/` changes.
 
 ## Architecture in brief
 
