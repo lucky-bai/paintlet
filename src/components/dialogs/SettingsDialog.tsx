@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { usePaintStore } from "../../state/store";
 import type { Theme } from "../../engine/types";
 import { DialogFrame } from "./DialogFrame";
@@ -19,16 +18,6 @@ export function SettingsDialog() {
   const setOpen = usePaintStore((s) => s.setSettingsDialogOpen);
   const theme = usePaintStore((s) => s.theme);
   const setTheme = usePaintStore((s) => s.setTheme);
-
-  // Close on Esc — listen on the window since the dialog owns no default focus.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, setOpen]);
 
   if (!open) return null;
 

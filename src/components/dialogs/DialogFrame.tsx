@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "../Icon";
 import { cx } from "../../lib/cx";
@@ -115,6 +115,25 @@ export function DialogFrame({
   onKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
   const { offset, panelRef, onHeaderPointerDown } = useDialogDrag();
+
+  // Esc closes, listened for on the window rather than on the panel. A
+  // panel-level onKeyDown only fires while focus is inside the panel, and
+  // clicking any dead space in the body — the padding, a label — is a mousedown
+  // on a non-focusable div, which drops focus to <body> and silently kills the
+  // shortcut from then on. Every DialogFrame is modal, so nothing else is
+  // competing for the key.
+  //
+  // Held in a ref so the listener isn't torn down and re-added on every parent
+  // render (ColorControls re-renders on each drag frame of the color picker).
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     // Scrim: dims the app and closes on click-away. A drag that happens to end

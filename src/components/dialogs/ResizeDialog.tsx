@@ -68,9 +68,12 @@ export function ResizeDialog() {
       title="Resize image"
       onClose={close}
       className="w-72"
+      // Enter only — Esc belongs to DialogFrame, which listens on the window so
+      // it keeps working after focus leaves the fields. Enter stays here on
+      // purpose: it means "commit what I just typed", so being tied to field
+      // focus is the correct scope for it.
       onKeyDown={(e) => {
         if (e.key === "Enter") apply();
-        else if (e.key === "Escape") close();
       }}
     >
       <SegmentedControl

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePaintStore } from "../state/store";
 import { cx } from "../lib/cx";
 import { PALETTE } from "../lib/palette";
@@ -17,16 +17,6 @@ export function ColorControls() {
   const swapColors = usePaintStore((s) => s.swapColors);
 
   const [editing, setEditing] = useState<"color1" | "color2" | null>(null);
-
-  // Esc closes the picker.
-  useEffect(() => {
-    if (!editing) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setEditing(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [editing]);
 
   const Swatch = ({ which }: { which: "color1" | "color2" }) => (
     <button
