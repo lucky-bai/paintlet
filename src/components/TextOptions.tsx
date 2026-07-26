@@ -83,7 +83,7 @@ function FontPicker() {
           }
         }}
         spellCheck={false}
-        className="h-7 w-40 rounded-md border border-hairline bg-work px-2 text-xs text-ink outline-none focus:border-[var(--vp-accent)]"
+        className="h-7 w-40 rounded-md border border-hairline bg-surface-raised px-2 text-xs text-ink outline-none focus:border-[var(--vp-accent)]"
         title="Font — pick one or type any installed font name"
         style={{ fontFamily: family }}
       />
@@ -150,7 +150,7 @@ export function TextOptions() {
           max={MAX}
           value={style.fontSize}
           onChange={(e) => setSize(Number(e.target.value))}
-          className="no-spinner h-7 w-12 border-x border-hairline bg-work px-1 text-center text-xs text-ink tabular-nums outline-none"
+          className="no-spinner h-7 w-12 border-x border-hairline bg-surface-raised px-1 text-center text-xs text-ink tabular-nums outline-none"
           title="Font size (px)"
         />
         <button

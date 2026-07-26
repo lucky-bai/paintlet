@@ -9,6 +9,18 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
 
+  // Two HTML entries, one per Tauri window. The About window is a real macOS
+  // window with its own webview, and giving it a separate entry keeps the
+  // editor (App, CanvasEngine, tool registry) out of its bundle.
+  build: {
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        about: "about.html",
+      },
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

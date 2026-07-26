@@ -11,8 +11,8 @@ import { Toolbar } from "./components/Toolbar";
 import { CanvasStage } from "./components/CanvasStage";
 import { StatusBar } from "./components/StatusBar";
 import { ResizeDialog } from "./components/dialogs/ResizeDialog";
-import { AboutDialog } from "./components/dialogs/AboutDialog";
 import { SettingsDialog } from "./components/dialogs/SettingsDialog";
+import { applyTheme } from "./lib/theme";
 
 // Single-key tool shortcuts (no modifier). These live in a keydown handler
 // rather than the menu because single-key menu accelerators would hijack every
@@ -70,20 +70,9 @@ function App() {
   }, []);
 
   // Resolve theme → data-theme on <html>. "system" follows the OS and updates
-  // live when the user flips appearance.
-  useEffect(() => {
-    const root = document.documentElement;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const dark = theme === "dark" || (theme === "system" && mq.matches);
-      root.setAttribute("data-theme", dark ? "dark" : "light");
-    };
-    apply();
-    if (theme === "system") {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    }
-  }, [theme]);
+  // live when the user flips appearance. Shared with the About window's webview,
+  // which starts with no data-theme of its own.
+  useEffect(() => applyTheme(theme), [theme]);
 
   // Keyboard: zoom (⌘+/-/0), delete selection, and single-key tool switching.
   // ⌘-combos owned by the native menu (undo, save, clipboard, …) fall through.
@@ -137,7 +126,6 @@ function App() {
       <CanvasStage />
       <StatusBar />
       <ResizeDialog />
-      <AboutDialog />
       <SettingsDialog />
     </div>
   );

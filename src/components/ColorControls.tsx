@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePaintStore } from "../state/store";
 import { cx } from "../lib/cx";
 import { PALETTE } from "../lib/palette";
 import { Icon } from "./Icon";
 import { ColorPicker } from "./ColorPicker";
+import { DialogFrame } from "./dialogs/DialogFrame";
 
 // Color 1 / Color 2 swatches + a quick palette grid. Clicking a swatch opens
 // the full color chooser in a popup. Left-click a palette chip = Color 1;
@@ -16,16 +17,6 @@ export function ColorControls() {
   const swapColors = usePaintStore((s) => s.swapColors);
 
   const [editing, setEditing] = useState<"color1" | "color2" | null>(null);
-
-  // Esc closes the picker.
-  useEffect(() => {
-    if (!editing) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setEditing(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [editing]);
 
   const Swatch = ({ which }: { which: "color1" | "color2" }) => (
     <button
@@ -78,34 +69,27 @@ export function ColorControls() {
         ))}
       </div>
 
-      {/* Full color chooser, shown as a centered popup. */}
+      {/* Full color chooser, shown as a draggable panel — being able to move it
+          off the area you're matching a color against is the whole point. */}
       {editing && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-          onMouseDown={() => setEditing(null)}
+        <DialogFrame
+          title={`Edit ${editing === "color1" ? "Color 1" : "Color 2"}`}
+          onClose={() => setEditing(null)}
         >
-          <div
-            className="rounded-xl border border-hairline bg-surface p-4 shadow-xl"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-ink">
-                Edit {editing === "color1" ? "Color 1" : "Color 2"}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setEditing(null)}
-                className="rounded-md bg-[var(--vp-accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
-              >
-                Done
-              </button>
-            </div>
-            <ColorPicker
-              value={editing === "color1" ? color1 : color2}
-              onChange={(hex) => (editing === "color1" ? setColor1(hex) : setColor2(hex))}
-            />
+          <ColorPicker
+            value={editing === "color1" ? color1 : color2}
+            onChange={(hex) => (editing === "color1" ? setColor1(hex) : setColor2(hex))}
+          />
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setEditing(null)}
+              className="rounded-md bg-[var(--vp-accent)] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            >
+              Done
+            </button>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

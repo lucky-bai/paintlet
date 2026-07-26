@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "about",
+  "description": "Capability for the About window — a real OS window with its own webview, so it needs its own grant. Scoped tight: it only reads the bundle version, opens the repo link, and closes itself on Esc.",
+  "windows": ["about"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "opener:default"
+  ]
+}

@@ -20,7 +20,8 @@ export type IconName =
   | "polygon"
   | "select"
   | "lasso"
-  | "swap";
+  | "swap"
+  | "close";
 
 const PATHS: Record<IconName, ReactNode> = {
   undo: (
@@ -100,6 +101,12 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M4 7h13" />
       <path d="m17 20 3-3-3-3" />
       <path d="M20 17H7" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </>
   ),
 };

@@ -511,6 +511,12 @@ export function CanvasStage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      // An open dialog owns Esc: DialogFrame closes on it, and cancelling the
+      // stroke or dropping the selection underneath at the same time would
+      // destroy work nobody asked to lose. Read from the DOM rather than store
+      // flags because the Edit Color popup's open state is local to
+      // ColorControls, so there's no flag to check.
+      if (document.querySelector('[role="dialog"]')) return;
       const activeId = usePaintStore.getState().activeToolId;
       if (drawing.current) {
         drawing.current = false;

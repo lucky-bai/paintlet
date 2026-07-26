@@ -38,14 +38,14 @@ A **universal** build (Apple Silicon + Intel), signed and notarized by Apple —
 - **Text** — multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough; reposition before committing.
 - **Selection** — rectangular marquee or free-form lasso, with move, eight-grip resize, and transparent backgrounds so a selection never stamps a solid block.
 - **Clipboard** — copy / cut / paste (⌘C/⌘X/⌘V) through the system clipboard.
-- **Save / Open** — one-step save as PNG or JPEG; the title bar tracks the file and unsaved changes.
+- **Save / Open** — opens PNG, JPEG, GIF, WebP, BMP, and HEIC; one-step save as PNG, JPEG, BMP, or GIF, picked from the save panel's format popup. The title bar tracks the file and unsaved changes.
 - **Image ops** — resize, crop, flip, rotate, and drag any canvas edge to crop or extend — all undoable.
 - **Zoom & pan** — 0.25×–8× crisp pixelated scaling, fit-to-window, pinch/⌘-wheel zoom, and space-drag panning.
 - **Undo / redo** — ⌘Z / ⇧⌘Z across every edit, including resizes and crops.
 - **Native macOS UI** — real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
-- **Settings & theme** (⌘,) — System / Light / Dark appearance and default new-image size, both persisted.
+- **Settings & theme** (⌘,) — Light by default, with Dark and System appearance; persisted across launches.
 
-Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
+Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design and architecture.
 
 ## Tech stack
 
@@ -76,7 +76,7 @@ pnpm test:e2e       # headless-browser smoke test: boots the web build and
                     # by reading pixels back off the canvases
 ```
 
-CI (GitHub Actions) runs build → unit tests → e2e on every pull request.
+CI (GitHub Actions) runs build → unit tests → e2e on every pull request, plus `cargo fmt` and `cargo clippy` on macOS whenever `src-tauri/` changes.
 
 ## Architecture in brief
 

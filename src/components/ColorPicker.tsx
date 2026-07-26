@@ -30,7 +30,7 @@ function RgbField({
         onChange={(e) =>
           onChange(Math.max(0, Math.min(255, Math.round(Number(e.target.value) || 0))))
         }
-        className="w-full rounded border border-hairline bg-work px-1 py-1 text-center text-xs tabular-nums text-ink outline-none focus:border-[var(--vp-accent)]"
+        className="w-full rounded border border-hairline bg-surface-raised px-1 py-1 text-center text-xs tabular-nums text-ink outline-none focus:border-[var(--vp-accent)]"
       />
     </label>
   );
@@ -174,7 +174,7 @@ export function ColorPicker({
               setHexText(t);
               if (isHexColor(t)) setFromHex(t.startsWith("#") ? t : `#${t}`);
             }}
-            className="w-20 rounded border border-hairline bg-work px-2 py-1 text-xs tabular-nums text-ink outline-none focus:border-[var(--vp-accent)]"
+            className="w-20 rounded border border-hairline bg-surface-raised px-2 py-1 text-xs tabular-nums text-ink outline-none focus:border-[var(--vp-accent)]"
           />
         </label>
       </div>

@@ -1,5 +1,6 @@
 import { ask } from "@tauri-apps/plugin-dialog";
-import { engine, usePaintStore } from "./state/store";
+import { invoke } from "@tauri-apps/api/core";
+import { DEFAULT_CANVAS_SIZE, engine, usePaintStore } from "./state/store";
 import { stageHooks } from "./state/stageHooks";
 import { STAGE_PADDING, viewport } from "./state/viewport";
 import { openImage, saveImage } from "./io/fileIO";
@@ -34,8 +35,7 @@ export async function newDocument(): Promise<void> {
     });
     if (!ok) return;
   }
-  const { w, h } = usePaintStore.getState().defaultCanvasSize;
-  engine.newDocument(w, h);
+  engine.newDocument(DEFAULT_CANVAS_SIZE.w, DEFAULT_CANVAS_SIZE.h);
   usePaintStore.getState().setFilePath(null);
 }
 
@@ -104,8 +104,13 @@ export function deleteSelection(): void {
 }
 
 // — App —
-export function openAboutDialog(): void {
-  usePaintStore.getState().setAboutDialogOpen(true);
+// About is a real OS window, not an in-app panel, so opening it is a Rust call
+// rather than a store flag. Fire-and-forget: the window either appears or comes
+// forward, and there's nothing for the caller to wait on.
+export function openAboutWindow(): void {
+  invoke("open_about_window").catch((err) =>
+    console.error("Failed to open the About window:", err),
+  );
 }
 export function openSettingsDialog(): void {
   usePaintStore.getState().setSettingsDialogOpen(true);

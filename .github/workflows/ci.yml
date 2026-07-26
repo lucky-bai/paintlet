@@ -1,7 +1,7 @@
 # Frontend CI: typecheck + bundle, unit tests (Vitest), and the headless-
-# browser e2e smoke (tests/e2e.mjs). The Tauri/Rust shell is intentionally not
-# built here — every change so far is frontend-only and a Rust build would
-# dominate the runtime; add a separate job if src-tauri/ starts changing.
+# browser e2e smoke (tests/e2e.mjs). Runs on Linux, so it deliberately does not
+# touch the Tauri/Rust shell — that lives in rust.yml, which runs on macOS
+# because nearly all of src-tauri/ is behind #[cfg(target_os = "macos")].
 name: CI
 
 on:

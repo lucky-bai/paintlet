@@ -29,7 +29,7 @@ export async function installAppMenu(): Promise<void> {
   const appMenu = await Submenu.new({
     text: "Paintlet",
     items: [
-      await item("About Paintlet", undefined, A.openAboutDialog),
+      await item("About Paintlet", undefined, A.openAboutWindow),
       await sep(),
       await item("Settings…", "CmdOrCtrl+,", A.openSettingsDialog),
       await sep(),

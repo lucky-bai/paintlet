@@ -540,6 +540,119 @@ step(
   `scrollDelta=${scrollAfter - scrollBefore} movedX=${movedX} movedY=${movedY}`,
 );
 
+// ── 22. dialogs drag by their title bar, stay on screen, survive the drag ──
+// The three in-app dialogs (Resize/Settings/Edit Color) share DialogFrame, so
+// exercising one covers the drag for all of them. Three things matter: it
+// actually moves, the click-away scrim doesn't eat the drag and close it, and
+// it can't be flung off-screen where there'd be no header left to grab.
+await reset();
+await action("openResizeDialog");
+await page.waitForTimeout(120);
+const panel = page.locator('div[role="dialog"]');
+const header = panel.locator("h2", { hasText: "Resize image" });
+const grab = async (dx, dy, steps = 8) => {
+  const hb = await header.boundingBox();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2 + dx, hb.y + hb.height / 2 + dy, { steps });
+  await page.mouse.up();
+  await page.waitForTimeout(60);
+};
+
+const dlg0 = await panel.boundingBox();
+await grab(-160, 120);
+const dlg1 = await panel.boundingBox();
+const dragMovedX = Math.round(dlg1.x - dlg0.x);
+const dragMovedY = Math.round(dlg1.y - dlg0.y);
+// Still open: the drag's mousedown landed on the header inside the panel, so the
+// scrim's click-away handler must never have fired.
+const stillOpen = await panel.count();
+
+// Now fling it far past the bottom-right corner and confirm the clamp pins it
+// inside the window instead of letting it leave.
+await grab(4000, 4000, 12);
+const dlg2 = await panel.boundingBox();
+const inBounds =
+  dlg2.y + dlg2.height <= 800 + 2 && dlg2.x + 80 <= 1280 + 2 && dlg2.x < 1280;
+
+step(
+  "dialogs drag by the title bar, stay open, and clamp to the window",
+  dragMovedX < -120 && dragMovedY > 90 && stillOpen === 1 && inBounds,
+  `moved=(${dragMovedX},${dragMovedY}) stillOpen=${stillOpen} clamped=${inBounds} finalRight=${Math.round(dlg2.x)} finalBottom=${Math.round(dlg2.y + dlg2.height)}`,
+);
+
+// ── 23. Esc closes a dialog even after focus leaves its controls ──────────
+// DialogFrame listens for Esc on the window, not on the panel. A panel-level
+// handler only fires while focus is inside the panel, and clicking dead space in
+// the body (padding, a label) drops focus to <body> — which used to leave Resize
+// unclosable by keyboard. Click the panel's bottom-left padding, then Esc.
+await reset();
+await action("openResizeDialog");
+await page.waitForTimeout(120);
+const escBox = await page.locator('div[role="dialog"]').boundingBox();
+await page.mouse.click(escBox.x + 6, escBox.y + escBox.height - 6);
+await page.waitForTimeout(60);
+const focusAfterDeadClick = await page.evaluate(
+  () => document.activeElement?.tagName ?? "none",
+);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(100);
+const closedAfterDeadClick = await page.locator('div[role="dialog"]').count();
+step(
+  "Esc closes a dialog after focus has left its fields",
+  closedAfterDeadClick === 0,
+  `focusAfterClick=${focusAfterDeadClick} dialogsOpen=${closedAfterDeadClick}`,
+);
+
+// ── 24. Esc-to-close must not also cancel the selection underneath ────────
+// Two window-level Esc handlers exist: DialogFrame's close and CanvasStage's
+// "cancel stroke / deselect". Both firing on one keypress silently destroyed a
+// live selection, so the canvas handler stands down while a dialog is open.
+await reset();
+await page.evaluate(async () => {
+  const { usePaintStore } = await import("/src/state/store.ts");
+  usePaintStore.getState().setTool("select");
+});
+const selCanvas = page.locator("canvas").first();
+const selBox = await selCanvas.boundingBox();
+await page.mouse.move(selBox.x + 60, selBox.y + 60);
+await page.mouse.down();
+await page.mouse.move(selBox.x + 200, selBox.y + 160, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(80);
+const hasSel = () =>
+  page.evaluate(
+    async () =>
+      (await import("/src/state/store.ts")).engine.hasSelectionOrFloat(),
+  );
+const selBefore = await hasSel();
+await action("openSettingsDialog");
+await page.waitForTimeout(120);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(120);
+const dialogsAfterSelEsc = await page.locator('div[role="dialog"]').count();
+const selAfter = await hasSel();
+step(
+  "closing a dialog with Esc leaves the selection intact",
+  selBefore && dialogsAfterSelEsc === 0 && selAfter,
+  `selBefore=${selBefore} dialogsOpen=${dialogsAfterSelEsc} selAfter=${selAfter}`,
+);
+
+// ── 25. About is a real OS window, not an in-app panel ────────────────────
+// openAboutWindow invokes a Rust command; under the shim that resolves to null.
+// The assertion is that nothing gets mounted into this document.
+const dialogsBefore = await page.locator('div[role="dialog"]').count();
+await page.keyboard.press("Escape");
+await page.waitForTimeout(80);
+await action("openAboutWindow");
+await page.waitForTimeout(150);
+const aboutInDom = await page.getByText("Released under the MIT License").count();
+step(
+  "About opens as a real window (nothing mounted in the main document)",
+  aboutInDom === 0,
+  `aboutTextInDom=${aboutInDom} dialogsBeforeEsc=${dialogsBefore}`,
+);
+
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });
 await browser.close();
 await server.close();
