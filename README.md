@@ -45,7 +45,7 @@ A **universal** build (Apple Silicon + Intel), signed and notarized by Apple —
 - **Native macOS UI** — real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
 - **Settings & theme** (⌘,) — System / Light / Dark appearance, persisted across launches.
 
-Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
+Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design and architecture.
 
 ## Tech stack
 

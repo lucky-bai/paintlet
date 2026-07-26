@@ -37,7 +37,7 @@ Where the app stands today, grouped by state.
 
 ### Not yet matching target scope
 
-- Nothing — the committed feature scope (§7) is fully built.
+- Nothing — the committed feature scope (§6) is fully built.
 
 ### Out of scope (won't build)
 
@@ -48,10 +48,10 @@ Where the app stands today, grouped by state.
 ## 1. Stack & tooling
 
 - **Shell:** Tauri v2 (Rust). Native menus, file dialogs, clipboard, app bundle.
-- **Build:** Vite + React 18 + TypeScript.
+- **Build:** Vite + React 19 + TypeScript. Two entries — `index.html` (the editor) and `about.html` (the About window's own webview).
 - **Styling:** Tailwind. macOS-native surfaces (SF Pro / `system-ui`, system control metrics, hairline separators, ~8–10px corners), with full light + dark mode.
 - **State:** Zustand for UI/config state only. **Pixel data never lives in React** — it lives in the imperative engine. This is the single most important rule for performance.
-- **Tauri plugins:** `@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-fs`, `@tauri-apps/plugin-clipboard-manager`.
+- **Tauri plugins:** `@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-fs`, `@tauri-apps/plugin-clipboard-manager`, `@tauri-apps/plugin-opener`.
 - **Tests:** Vitest for the pure logic; a Playwright-driven headless-browser e2e smoke (`pnpm test:e2e`) that runs the web build and asserts on real pixels; GitHub Actions runs build → unit → e2e on every PR.
 
 ### Key decisions (defaults chosen; easy to revisit)
@@ -59,6 +59,7 @@ Where the app stands today, grouped by state.
 - **Look:** Windows 11 Paint's *layout and interactions* (top toolbar, size slider, color palette, bottom zoom bar) in macOS clothing (native window, SF Pro, system controls, dark mode). Not a pixel-faithful Windows clone, not retro Win9x.
 - **Menus:** Native macOS menu bar (via Tauri) for real ⌘-shortcuts and Mac feel — File/Edit/View/Image live in the system menu bar at the top of the screen, not in-window.
 - **Canvas resolution:** 1 canvas pixel = 1 image pixel (logical resolution, *not* multiplied by devicePixelRatio). Crispness and zoom come from CSS scaling with `image-rendering: pixelated`. This keeps the pixel model clean — essential for a Paint clone.
+- **New document:** 800 × 600, fixed. Not a preference — Paint has none, and File → New followed by Resize covers the rare case.
 
 ---
 
@@ -83,7 +84,7 @@ Because *every* action ends as pixels on the base layer, undo, selection, and te
 ### What owns what
 
 - **`CanvasEngine`** (imperative, plain TS) owns the canvas contexts, compositing, and current image. React talks to it via refs, not state.
-- **Zustand store** owns only: active tool id, color1/color2, brush size, image dimensions, view transform (zoom/pan), cursor position, dirty flag, file path, theme.
+- **Zustand store** owns UI and config state only — active tool, the two colors, brush and shape widths, text style, view transform, cursor position, file path, theme, dialog visibility — plus a few values mirrored *out* of the engine (dimensions, dirty, can-undo/redo, selection size) so menus and the status bar can react. Never pixels.
 - **React components** are thin: they render chrome (toolbar, palette, status bar) and forward pointer events to the active tool.
 
 ```
@@ -101,12 +102,15 @@ React (chrome + config)  ──►  Zustand (UI state)
 ```
 paintlet/
 ├─ src-tauri/
-│  ├─ src/main.rs                 # window setup, read/write-image commands
-│  ├─ capabilities/default.json   # v2 permissions (dialog, fs)
+│  ├─ src/lib.rs                  # menu setup, image + About-window commands
+│  ├─ src/main.rs                 # thin binary entry → lib::run()
+│  ├─ capabilities/default.json   # main-window permissions (dialog, fs, …)
+│  ├─ capabilities/about.json     # About window: close + open-URL only
 │  ├─ tauri.conf.json
 │  └─ Cargo.toml
 ├─ src/
-│  ├─ main.tsx
+│  ├─ main.tsx                    # editor entry (index.html)
+│  ├─ about.tsx                   # About entry (about.html)
 │  ├─ App.tsx                     # layout shell, tool-key shortcuts, close guard
 │  ├─ actions.ts                  # shared commands for menu + keyboard
 │  ├─ components/
@@ -122,6 +126,7 @@ paintlet/
 │  │  ├─ StatusBar.tsx            # coords, image + selection size, zoom slider
 │  │  ├─ TitleBar.tsx             # draggable strip under the traffic lights
 │  │  ├─ Icon.tsx                 # inline SVG icon set
+│  │  ├─ SegmentedControl.tsx     # shared radio-group segments
 │  │  ├─ AboutWindow.tsx          # contents of the About window (its own webview)
 │  │  └─ dialogs/                 # DialogFrame (draggable chrome) + Resize,
 │  │                              #   Settings (Save uses the native panel)
@@ -146,18 +151,19 @@ paintlet/
 │  │  └─ registry.ts              # id → tool instance
 │  ├─ state/
 │  │  ├─ store.ts                 # zustand (UI/config state only)
+│  │  ├─ settings.ts              # persisted theme (engine-free, shared w/ About)
 │  │  ├─ stageHooks.ts            # text-flush + session-cancel escape hatches
 │  │  └─ viewport.ts              # work-area element ref for fit/scroll
 │  ├─ io/
 │  │  ├─ fileIO.ts                # open/save via Tauri
 │  │  └─ clipboard.ts             # system clipboard with in-app fallback
-│  ├─ lib/                        # cx, zoom bounds, SVG cursors, palette
+│  ├─ lib/                        # cx, zoom bounds, SVG cursors, palette, theme
 │  └─ styles/index.css            # tailwind + theme tokens (light/dark)
 ├─ tests/e2e.mjs                  # headless-browser smoke test
 ├─ .github/workflows/ci.yml       # build → unit tests → e2e on every PR
 ├─ vitest.config.ts               # unit tests colocated as src/**/*.test.ts
-├─ index.html
-└─ vite.config.ts
+├─ index.html · about.html
+└─ vite.config.ts                 # two rollup inputs: main + about
 ```
 
 ---
@@ -221,7 +227,7 @@ Why this scales:
 - **Selection** — same interface, just richer internal state (drag marquee → extract region → drag to move). No engine changes needed.
 - **Text** — pointer-down spawns a floating input, commit rasterizes it. Still the same lifecycle.
 
-### History (undo/redo) — designed in now, cheap to enable
+### History (undo/redo)
 
 Snapshot-based, robust because everything is pixels:
 
@@ -243,58 +249,24 @@ export class History {
 - `commit()` pushes a full-canvas `ImageData` after each action; the blank canvas is snapshot #0.
 - Undo/redo = `putImageData` of the neighboring snapshot.
 - Memory: an 800×600 canvas ≈ 1.9 MB/snapshot; 30 steps ≈ 57 MB. Fine.
-- **Evolution path:** for very large canvases, swap the snapshot store for dirty-rectangle diffs or a command/patch log — the `History` interface stays identical, so tools and the commit flow never change. This is why we can ship a simple version and upgrade silently.
+- **Evolution path:** for very large canvases, swap the snapshot store for dirty-rectangle diffs or a command/patch log — the `History` interface stays identical, so tools and the commit flow never change.
 
-### Coordinate mapping — built from day one
+### Coordinate mapping
 
 ```ts
 // engine/coords.ts
 // DOM pointer event → canvas logical pixel, accounting for
-// element rect, zoom, and pan. For MVP zoom=1/pan=0, but the
-// function exists so zoom slots in later without touching any tool.
+// element rect, zoom, and pan.
 export function screenToCanvas(
   e: PointerEvent, canvasEl: HTMLCanvasElement, view: ViewTransform
 ): Point;
 ```
 
-All tools receive already-mapped canvas coordinates. When zoom/pan arrive, only this function changes.
+All tools receive already-mapped canvas coordinates, so no tool contains zoom or pan arithmetic — this one function is the only place it lives.
 
 ---
 
-## 5. State store shape
-
-```ts
-// state/store.ts  (zustand)
-interface PaintState {
-  activeToolId: ToolId;
-  color1: string;                 // foreground
-  color2: string;                 // background
-  brushSize: number;
-  imageSize: { w: number; h: number };
-  view: ViewTransform;            // zoom/pan
-  cursorPos: Point | null;        // for status bar
-  isDirty: boolean;
-  filePath: string | null;
-  theme: 'system' | 'light' | 'dark';
-  canUndo: boolean;               // mirrored from History for menu enablement
-  canRedo: boolean;
-
-  setTool(id: ToolId): void;
-  setColor1(c: string): void;
-  setColor2(c: string): void;
-  setBrushSize(n: number): void;
-  setImageSize(w: number, h: number): void;
-  setZoom(z: number): void;
-  setTheme(t: PaintState['theme']): void;
-  // ... etc.
-}
-```
-
-Pixel data is deliberately absent — it stays in `CanvasEngine`.
-
----
-
-## 6. How it looks
+## 5. How it looks
 
 Windows 11 Paint's layout, wearing macOS. Just window chrome + top toolbar + canvas + status bar — the menus live in the system menu bar, which is the natural Mac arrangement.
 
@@ -331,7 +303,7 @@ Toolbar groups, left to right: **undo/redo** · **drawing tools** (pencil, brush
 
 ---
 
-## 7. Feature scope
+## 6. Feature scope
 
 The committed feature set. The rendering rule comes first because it shapes several tools.
 
@@ -346,7 +318,7 @@ The bucket fills by exact color match, so any anti-aliased edge leaves a one-pix
 
 - **Selection** — rectangular marquee and free-form (lasso).
 - **Colors** — MS Paint palette, plus an in-app color chooser popup (saturation/value spectrum, hue slider, palette, hex, and RGB 0–255). Left-click = Color 1, right-click = Color 2.
-- **Shapes** — line, rectangle, circle, rounded rectangle, polygon, curve. Hard-edged; straight strokes use aliased round-brush rasterization for uniform weight at any angle. Continuous width slider.
+- **Shapes** — line, rectangle, circle, rounded rectangle, polygon, curve, stroked through the canvas at four fixed widths (1 / 3 / 5 / 8 px).
 - **Pencil** — hard-edged freehand with a continuous width slider.
 - **Brush** — anti-aliased freehand (the pencil's smooth counterpart).
 - **Eraser · Eyedropper · Fill (bucket)** — standard Paint behavior; left / right paints Color 1 / Color 2.
@@ -362,31 +334,18 @@ Layers · transparency / alpha · AI features (Cocreator, generative fill) · st
 
 ---
 
-## 8. File I/O (Tauri v2)
+## 7. File I/O (Tauri v2)
 
-**Save:**
-```ts
-const blob = await new Promise<Blob>(res => canvas.toBlob(b => res(b!), 'image/png'));
-const bytes = new Uint8Array(await blob.arrayBuffer());
-const path = filePath ?? await save({ filters: [{ name: 'PNG', extensions: ['png'] }] });
-await writeFile(path, bytes);            // @tauri-apps/plugin-fs
-```
+The **native dialog** picks the path (`plugin-dialog`), but the **bytes move through our own Rust commands** — `read_image_file` and `write_image_file` in `src-tauri/src/lib.rs`. That indirection is the point: `plugin-fs` is scope-restricted, so reading and writing arbitrary user-chosen paths through it would mean either a permissive scope or a failure on every folder we didn't anticipate. A custom command is already trusted, so the user's choice in the file panel is the only authorization needed.
 
-**Open:**
-```ts
-const path = await open({ filters: [{ name: 'Images', extensions: ['png','jpg','bmp','gif'] }] });
-const bytes = await readFile(path);
-const img = await createImageBitmap(new Blob([bytes]));
-engine.resizeCanvas(img.width, img.height);
-engine.base.drawImage(img, 0, 0);
-engine.snapshot('open');                 // seed history
-```
+- **Open** — `read_image_file` → `createImageBitmap` → `engine.loadBitmap()`, which resizes the canvas, draws, and seeds history in one step.
+- **Save** — `canvas.toBlob()` → `write_image_file`. One step: an already-saved file re-writes in place; a new document goes straight to the native save panel, whose file-type popup chooses PNG or JPEG. The format follows the extension the user lands on, defaulting to PNG.
 
-**v2 gotcha:** permissions are opt-in via `src-tauri/capabilities/default.json` — grant `dialog:default`, `fs:allow-write-file`, `fs:allow-read-file` (scoped appropriately), or the calls silently fail.
+**v2 gotcha:** plugin and core commands are opt-in per window via `src-tauri/capabilities/*.json` and fail silently if ungranted. Custom `#[tauri::command]` functions are *not* gated this way — they're reachable from any webview in the app, which is why the About window gets its own narrowly-scoped capability rather than sharing the main one.
 
 ---
 
-## 9. Tricky bits & how we handle them
+## 8. Tricky bits & how we handle them
 
 - **Gaps in fast strokes** — pointer events are sparse; always draw a *line* from the last point to the current one, never isolated dots.
 - **Flood fill** — scanline fill over one `getImageData`/`putImageData` pass; never read pixels per-iteration. The match is exact (zero tolerance), which is precisely why the pencil and shapes must render hard-edged: an anti-aliased border would leave a one-pixel unfilled halo. The brush is anti-aliased and isn't meant to be filled against.
@@ -397,87 +356,37 @@ engine.snapshot('open');                 // seed history
 
 ---
 
-## 10. Roadmap / milestones
+## 9. Keyboard shortcuts (via native menu)
 
-- **M0 — Scaffold** · *Done.* Tauri + React + TS + Vite, Tailwind v4, macOS transparent-titlebar window, light/dark theme tokens, shell.
-- **M1 — Engine + first tool + history** · *Done.* `CanvasEngine` (base/overlay), commit flow, snapshot `History`, pointer plumbing, `coords.ts`, pencil, color model, palette, top toolbar. (Undo works from here.)
-- **M2 — Menu + shortcuts** · *Done.* Native macOS menu bar (File/Edit/Image/View) with ⌘-accelerators, New; single-key tool shortcuts and Esc-cancel via a keydown handler.
-- **M3 — Shape & brush tools** · *Done.* Line, rectangle, ellipse (overlay preview); eraser; brush + size slider.
-- **M4 — Pixel tools** · *Done.* Flood fill, eyedropper.
-- **M5 — File I/O** · *Done.* Open + save/save-as PNG **and JPEG**, dirty tracking, window title. Bytes move through a Rust command so any user-chosen path works.
-- **M6 — Zoom** · *Done.* Zoom slider, ⌘+/−/0, fit-to-window (⌘9), pinch / ⌘-wheel zoom at the cursor, space- or middle-drag pan, coordinate mapping, status bar.
-- **M7 — Selection** · *Done.* Rectangular marquee and free-form lasso with marching ants; move, delete, select-all, and copy/cut/paste through the system clipboard (internal fallback).
-- **M8 — Polish** · *Done.* Multi-line styled text, crop, resize, flip H/V, rotate 90° right/left/180°, polygon and curve shapes, fit-to-window zoom, canvas drag-resize handles, per-tool cursors, data-loss guards. (Layers stay out of scope.)
-- **M9 — Tests & CI** · *Done.* Vitest unit suite over the pure logic; a headless-browser e2e smoke driving real pointer/keyboard input and asserting on pixels; GitHub Actions runs build → unit → e2e on every PR.
-- **M10 — Paint-fidelity & UX pass** · *Done.* Flood fill made leak-tight through thin curves; precise crosshair cursors for fill/eyedropper; smooth wheel zoom; canvas + selection resize grips (Shift keeps aspect); transparent selection (background drops out on move/paste); in-app color picker replacing the system panel; Win11-style grouped ribbon with a compact shapes grid; pull-through curve with live preview; Save-format dialog; image operations folded into the Edit menu with the system Dictation/Emoji items suppressed; window opens maximized.
-- **M11 — UX audit & discoverability** · *Done.* Full audit of Windows/macOS expectations and implementation clarity (§12). Fixed: per-tool usage hints in the status bar (the multi-gesture curve, multi-click polygon, and selection tools are no longer a guessing game); size-aware brush/eraser cursors that show real coverage; a `move` cursor inside a selection body (and a fix for the hover cursor lingering after the selection or tool changed); clearer active-tool state (filled + ring, consistent with the size picker) and keyboard focus rings; and color-affordance tooltips (which slot a palette click fills, left vs right).
-- **M12 — Fidelity & chrome pass** · *Done.* Uniform line/polygon weight at every angle via an aliased round-brush rasterizer (`engine/raster.ts`, Bresenham + disc stamp) — no heavier diagonals, still fill-tight. Tool-shaped fill/eyedropper cursors with tip hotspots, plus a live sampled-color square beside the eyedropper. Text: the floating box drags to reposition before commit, placing it no longer scrolls the canvas (`focus({ preventScroll })`), the font field is an editable combobox over all system fonts, and the size field has large ± steppers. Save is one step (native panel's file-type popup picks the format; the extra in-app dialog is gone). Shape widths are a slider, not 1/3/5/8 buttons. The color chooser is a popup with spectrum + palette + hex + RGB (0–255). Curve/polygon previews are rAF-coalesced (no lag). App menu trimmed to Quit. New paintbrush logo in the title bar and bundle icons.
-- **M13 — UX corrections, Settings & release prep** · *Done.* Shape widths use the 1/3/5/8 presets and lines/polygons stroke through the canvas (anti-aliased); the round-brush rasterizer is gone. Curve reworked to a four-click gesture over two direct Bézier control points (click the two ends for the line, then click twice to bend), so it makes clean arcs instead of folding a quick click into a closed loop. Eyedropper switches to the bucket after a pick. The Text font field is a custom combobox that previews each family in its own typeface and always shows the full list (no type-to-filter), and its size field hides the native spinners (the ± steppers remain). Canvas resize grips on all four corners and edges — top/left handles offset the content so the opposite edge stays put. Neutral grip on the text move-bar. Settings window (⌘,) for theme (System / Light / Dark), persisted via `localStorage`. App menu adds About + Settings; the auto-inserted Writing Tools / AutoFill Edit items are stripped and Dictation / Emoji suppressed. The original pixel-art palette logo — centered and scaled (nearest-neighbour) — in the title bar and favicon; the app/dock icon reshapes that same art into the native macOS squircle (inset to the icon grid, superellipse-masked, subtle shadow). Release metadata and a signing checklist (§13).
-
-### Keyboard shortcuts (via native menu)
-
-- ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as
+- ⌘, settings · ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as
 - ⌘Z undo · ⇧⌘Z redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all
 - ⌘+ / ⌘− / ⌘0 zoom in / out / actual size · ⌘9 fit to window
 - `S` select · `W` free-form select · `P` pencil · `B` brush · `E` eraser · `L` line · `C` curve · `R` rect · `U` rounded rect · `O` ellipse · `G` polygon · `F` fill · `T` text · `I` eyedropper · `Esc` cancel current action
 
 ---
 
-## 11. First commands
+## 10. Known deviations & accepted trade-offs
 
-```bash
-npm create tauri-app@latest paintlet  # choose: React, TypeScript, Vite
-cd paintlet
-npm install
-npm install zustand
-npm install @tauri-apps/plugin-dialog @tauri-apps/plugin-fs
-# Tailwind v4 — Vite plugin, no init/postcss step
-npm install tailwindcss @tailwindcss/vite
-#   → add tailwindcss() to plugins in vite.config.ts
-#   → add `@import "tailwindcss";` at the top of src/styles/index.css
-npm run tauri dev
-```
+Places where Paintlet knowingly departs from a Windows or macOS convention, or where a rough edge is understood and left alone. Each carries two 0–10 ratings: **Severity** — how much it hurts a user (0 = cosmetic, 10 = blocking) — and **Confidence** — how sure this is a real issue worth changing (0 = a hunch, 10 = certain). Recording the reason keeps each one an explicit decision rather than an oversight.
 
-> Scaffold gives React 19 + Tailwind v4 (CSS-first config; no `tailwind.config.js` unless you want one). Default new-canvas size: **800 × 600**. Freehand strokes (pencil/brush) **accumulate on the overlay and commit once on pointer-up** — one stroke = one undo step, base untouched mid-stroke.
-
----
-
-## 12. UX audit
-
-A pass over the whole app for anything confusing, off-convention for a Windows or macOS user, not best practice, or where the implementation itself reads as unclear. Each finding carries two 0–10 ratings: **Severity** — how much it hurts a user (0 = cosmetic, 10 = blocking) — and **Confidence** — how sure this is a real issue worth changing (0 = a hunch, 10 = certain). Findings above the confidence bar were fixed in this pass; the rest are recorded with the reason they were left, so the decision is explicit rather than forgotten.
-
-### Fixed
-
-| Area | Finding | Sev | Conf | Fix |
-|---|---|---|---|---|
-| Curve / polygon / select / text | The multi-gesture curve, multi-click polygon, and move/resize selection interactions are genuinely unguessable — even Windows Paint's curve confuses people, and there was no on-screen cue. | 5 | 8 | A concise usage hint per tool in the status bar (e.g. curve → "Drag to draw a line, then drag twice to bend it · Esc cancels"). |
-| Brush / eraser cursor | A fixed small dot regardless of the size slider — a 48 px brush showed a tiny cursor, lying about coverage. | 4 | 7 | The brush (round) and eraser (square) cursors now match the painted size on screen (size × zoom), clamped to a grabbable, browser-supported range. |
-| Selection | Hovering inside a selection gave no hint that a press would move it (cursor stayed a crosshair). | 4 | 7 | A `move` cursor over the selection body; resize grips still telegraph on the rectangular Select tool. |
-| Selection (bug) | The hover cursor (grip / `move`) lingered after the selection was cleared or the tool changed, until the pointer next moved over the canvas. | 3 | 9 | Cleared reactively on tool change and when the selection goes away. |
-| Toolbar | The active tool used a faint 15%-tint that read weakly (especially in dark mode) and was inconsistent with the shape-size buttons, which fill with the accent. | 4 | 6 | Clearer active state — accent fill plus an inset ring — consistent across tool and size buttons. |
-| Accessibility | No visible keyboard-focus indicator on the icon buttons. | 4 | 8 | `:focus-visible` rings on the tool buttons (invisible to pointer users). |
-| Colors | Left-click = Color 1 / right-click = Color 2 on the palette is the older Paint model and undiscoverable on a Mac; nothing said which slot a click fills. | 4 | 7 | Tooltips spell it out on the palette chips and the two swatches (foreground / background, click to edit). |
-
-### Documented — deferred
-
-| Area | Finding | Sev | Conf | Why deferred |
+| Area | Finding | Sev | Conf | Why it's left alone |
 |---|---|---|---|---|
 | View menu | Zoom In/Out/Actual/Fit show no shortcut, so ⌘+/−/0/9 are invisible in the one place users look for them. | 5 | 8 | The clean fix — native menu accelerators — risks double-firing with the in-app ⌘-zoom keydown handler and can't be verified headlessly. Wants a real-app pass before changing. |
 | Edit menu | Fourteen flat items (clipboard + selection + all image ops) is a lot to scan. | 3 | 5 | The user explicitly asked for the image operations to live *in* Edit; nesting them under an "Image" submenu risks re-introducing exactly what was removed. |
 | Selection | Transparent selection is always on; classic Paint defaults to *opaque* and makes transparency a toggle. | 3 | 5 | Matches the explicit request ("treat the background as transparent when moving"). A toggle is more faithful but adds a control; revisit if opaque moves are wanted. |
 | Selection | A free-form (lasso) selection can't be resized — grips appear only on the rectangular Select tool. | 3 | 5 | Deliberate: the lasso moves, and you switch to Select to scale. Documented rather than adding lasso-bbox grips. |
-| Save | ⌘S on an untitled document opens an in-app format dialog before the native save panel — two steps, and not the macOS norm of going straight to a save sheet. | 2 | 5 | Intentional per the "don't leave the user guessing the file format" request; the format dropdown is the point. |
 | Zoom | ⌘0 = actual size and ⌘9 = fit; most image editors map ⌘0 to fit. | 2 | 4 | Defensible (Preview-like), non-conflicting, and changing it would surprise users who've learned it. |
 | Color picker | The hex field silently ignores invalid input with no feedback. | 2 | 5 | Low impact; a validation cue is a nice-to-have, not a correctness issue. |
 | Canvas | The edge/corner resize handles are 10 px — a small hit target. | 3 | 5 | Enlarging the grab area without making the dots visually heavier needs a little care; low frequency of use. |
 | Eyedropper | What tool to land on after a pick. | 2 | 6 | Switches to the bucket, so the sampled color is ready to fill with in one step. |
-| Theme | No in-app light/dark override — it always follows the system. | 2 | 4 | Correct macOS behavior; an override is optional, not expected. |
 
 ### Not observable headlessly
 
-The native-shell items — maximized window, the Edit-menu merge, the Dictation/Emoji suppression, on-disk save, and trackpad-pinch zoom — depend on the Tauri shell and can't be exercised in the headless web build, so they aren't asserted by the e2e suite. They're implemented and wired; confirm with one pass in `pnpm dev`.
+The native-shell items — maximized window, the Edit-menu merge, the Dictation/Emoji suppression, on-disk save, trackpad-pinch zoom, and the About window (its own OS window, with the minimize/zoom buttons hidden via AppKit) — depend on the Tauri shell and can't be exercised in the headless web build, so they aren't asserted by the e2e suite. They're implemented and wired; confirm with one pass in `pnpm dev`.
 
-## 13. Release readiness
+---
+
+## 11. Release readiness
 
 ### In place
 
