@@ -352,13 +352,19 @@ export class CanvasEngine {
     this.emit();
   }
 
-  // Scale the whole image to a new size (Image → Resize). `smooth` picks
-  // bilinear resampling (photos) vs nearest-neighbor (pixel art).
-  resizeImage(width: number, height: number, smooth = true): void {
+  // Scale the whole image to a new size (Image → Resize). Always resamples
+  // smoothly, matching Paint: its Resize dialog exposes no choice, and Paint has
+  // resampled rather than point-sampled since the Windows 7 rewrite. Scaling a
+  // selection (scaleFloatTo) smooths for the same reason.
+  //
+  // Smoothing has to be turned on here rather than once at setup, because
+  // applySize resets it to false on every context — the app draws hard-edged
+  // everywhere else, and this one blit is the exception.
+  resizeImage(width: number, height: number): void {
     this.stampFloatOnly();
     const src = this.copyBase();
     this.applySize(width, height);
-    this.base.imageSmoothingEnabled = smooth;
+    this.base.imageSmoothingEnabled = true;
     this.base.drawImage(src, 0, 0, src.width, src.height, 0, 0, width, height);
     this.base.imageSmoothingEnabled = false;
     this.clearOverlay();

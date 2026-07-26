@@ -7,9 +7,9 @@ const MIN = 1;
 const MAX = 8192;
 const clamp = (n: number) => Math.max(MIN, Math.min(MAX, Math.round(n || MIN)));
 
-// Modal for Image → Resize. Scales the whole image to new pixel dimensions,
-// optionally locking the aspect ratio and choosing smooth (bilinear) vs
-// nearest-neighbor resampling.
+// Modal for Image → Resize. Scales the whole image to new pixel dimensions, by
+// pixels or percent, with the aspect ratio locked by default. Resampling isn't
+// exposed — Paint's own Resize dialog has no such control and always resamples.
 export function ResizeDialog() {
   const open = usePaintStore((s) => s.resizeDialogOpen);
   const setOpen = usePaintStore((s) => s.setResizeDialogOpen);
@@ -19,7 +19,6 @@ export function ResizeDialog() {
   const [width, setWidth] = useState(w);
   const [height, setHeight] = useState(h);
   const [lock, setLock] = useState(true);
-  const [smooth, setSmooth] = useState(true);
 
   // Seed the fields whenever the dialog opens or the unit switches: pixels show
   // the current dimensions; percent starts at 100.
@@ -55,7 +54,7 @@ export function ResizeDialog() {
       unit === "px"
         ? { w: width, h: height }
         : { w: (w * width) / 100, h: (h * height) / 100 };
-    engine.resizeImage(clamp(px.w), clamp(px.h), smooth);
+    engine.resizeImage(clamp(px.w), clamp(px.h));
     close();
   };
 
@@ -118,21 +117,13 @@ export function ResizeDialog() {
         </span>
       </label>
 
-      <label className="mb-1.5 flex items-center gap-2 text-xs text-ink">
+      <label className="mb-4 flex items-center gap-2 text-xs text-ink">
         <input
           type="checkbox"
           checked={lock}
           onChange={(e) => setLock(e.target.checked)}
         />
         Maintain aspect ratio
-      </label>
-      <label className="mb-4 flex items-center gap-2 text-xs text-ink">
-        <input
-          type="checkbox"
-          checked={smooth}
-          onChange={(e) => setSmooth(e.target.checked)}
-        />
-        Smooth (resample)
       </label>
 
       <div className="flex justify-end gap-2">
