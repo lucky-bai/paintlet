@@ -38,7 +38,7 @@ A **universal** build (Apple Silicon + Intel), signed and notarized by Apple —
 - **Text** — multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough; reposition before committing.
 - **Selection** — rectangular marquee or free-form lasso, with move, eight-grip resize, and transparent backgrounds so a selection never stamps a solid block.
 - **Clipboard** — copy / cut / paste (⌘C/⌘X/⌘V) through the system clipboard.
-- **Save / Open** — one-step save as PNG or JPEG; the title bar tracks the file and unsaved changes.
+- **Save / Open** — opens PNG, JPEG, GIF, WebP, BMP, and HEIC; one-step save as PNG, JPEG, or BMP. The title bar tracks the file and unsaved changes.
 - **Image ops** — resize, crop, flip, rotate, and drag any canvas edge to crop or extend — all undoable.
 - **Zoom & pan** — 0.25×–8× crisp pixelated scaling, fit-to-window, pinch/⌘-wheel zoom, and space-drag panning.
 - **Undo / redo** — ⌘Z / ⇧⌘Z across every edit, including resizes and crops.

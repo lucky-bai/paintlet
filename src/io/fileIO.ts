@@ -1,18 +1,12 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { engine, usePaintStore } from "../state/store";
-
-// Formats we can decode on Open (whatever the webview's createImageBitmap
-// supports) and the ones we can encode on Save.
-const OPEN_EXTS = ["png", "jpg", "jpeg", "gif", "webp"];
-const KNOWN_EXTS = new Set([...OPEN_EXTS, "bmp"]);
-
-// Pick the encoder mime type (and JPEG quality) from a file's extension.
-function encoding(path: string): { type: string; quality?: number } {
-  const ext = path.split(".").pop()?.toLowerCase();
-  if (ext === "jpg" || ext === "jpeg") return { type: "image/jpeg", quality: 0.92 };
-  return { type: "image/png" };
-}
+import {
+  OPEN_EXTS,
+  canEncode,
+  encodingFor,
+  type Encoding,
+} from "./formats";
 
 // File → Open. Decode the chosen image and replace the whole document.
 export async function openImage(): Promise<void> {
@@ -35,13 +29,18 @@ export async function openImage(): Promise<void> {
 
 // File → Save / Save As. An already-saved file re-writes in place with no
 // prompt. Otherwise the native save panel is shown ONCE — its file-type popup
-// (PNG or JPEG) is where the format is chosen, so there's no extra in-app step:
-// the format is taken from the extension the user lands on (defaulting to PNG).
+// is where the format is chosen, so there's no extra in-app step: the format is
+// taken from the extension the user lands on (defaulting to PNG).
 export async function saveImage(saveAs = false): Promise<void> {
   const store = usePaintStore.getState();
   const path = store.filePath;
-  if (!saveAs && path) {
-    await writeTo(path, encoding(path));
+
+  // Re-write in place only when we can actually produce the format already on
+  // disk. A file we can read but not write (WebP, HEIC) falls through to the
+  // panel rather than being overwritten with PNG bytes under its original
+  // name — that would corrupt the file instead of saving it.
+  if (!saveAs && path && canEncode(path)) {
+    await writeTo(path, encodingFor(path));
     return;
   }
 
@@ -51,23 +50,25 @@ export async function saveImage(saveAs = false): Promise<void> {
     filters: [
       { name: "PNG image", extensions: ["png"] },
       { name: "JPEG image", extensions: ["jpg", "jpeg"] },
+      { name: "BMP image", extensions: ["bmp"] },
     ],
   });
   if (!chosen) return; // cancelled
 
-  // Ensure a known extension so the encoder and the on-disk name agree; an
-  // extension-less name defaults to PNG.
-  let dest = chosen;
-  const ext = dest.split(".").pop()?.toLowerCase();
-  if (!ext || !KNOWN_EXTS.has(ext)) dest = `${dest}.png`;
+  // The format follows the extension the user lands on. Anything we can't
+  // encode — including no extension at all — gains a .png rather than being
+  // written with mismatched bytes. GIF is absent from the panel above because
+  // it quantizes to 256 colors, but stays writable here so ⌘S on a file that
+  // was already a GIF re-saves as one.
+  const dest = canEncode(chosen) ? chosen : `${chosen}.png`;
 
-  await writeTo(dest, encoding(dest));
+  await writeTo(dest, encodingFor(dest));
 }
 
 // Bake any floating selection in, encode the base, and write it to disk.
 async function writeTo(
   path: string,
-  { type, quality }: { type: string; quality?: number },
+  { type, quality }: Encoding,
 ): Promise<void> {
   engine.deselect();
   const blob = await engine.toBlob(type, quality);
