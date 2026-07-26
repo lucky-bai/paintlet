@@ -16,7 +16,11 @@ export interface PersistedSettings {
   theme: Theme;
 }
 
-const DEFAULTS: PersistedSettings = { theme: "system" };
+// Light rather than "system": Paintlet is a Paint homage, and Paint is a
+// light-chrome app, so a first launch on a dark-mode Mac should still look like
+// the thing it's imitating. "system" is one click away in Settings (⌘,) and is
+// remembered, so the cost of this choice lands only on the very first launch.
+const DEFAULTS: PersistedSettings = { theme: "light" };
 
 const isTheme = (t: unknown): t is Theme =>
   t === "light" || t === "dark" || t === "system";

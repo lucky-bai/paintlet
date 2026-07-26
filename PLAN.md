@@ -30,7 +30,7 @@ Where the app stands today, grouped by state.
 - **Tool shortcuts** — `S W P B F T E I L C R U O G` select the tools; `Esc` cancels the current action / deselects.
 - **Status bar** — live cursor coordinates, image dimensions, and the selection's size while one exists.
 - **Guardrails** — File → New/Open confirm before discarding unsaved changes; a pending text edit is committed (never dropped) by Save / New / Open / closing the window; undo cancels an in-progress multi-gesture shape. Per-tool cursors: precise crosshairs for fill/eyedropper, a circle for the brush, a square for the eraser, and the resize cursor while dragging a canvas or selection grip.
-- **Theme** — light / dark following the macOS appearance, switching live.
+- **Theme** — light by default; Dark and System (which follows the macOS appearance, switching live) are in Settings.
 - **Window & canvas** — opens maximized; native transparent title bar (traffic lights) with a draggable strip carrying the Paintlet mark and a dirty-dot in the title; pointer capture; right-click context menu suppressed on the canvas.
 - **Brand** — the original pixel-art painter's palette with a brush on a light-blue tile, centered and scaled (nearest-neighbour, so the pixelation stays crisp). One artwork everywhere: `public/logo.png` is the favicon and the title-bar mark, and the same art generated the bundle icons via `pnpm tauri icon`.
 - **Toolchain** — pnpm; `pnpm dev` launches the full app.
@@ -415,6 +415,7 @@ Places where Paintlet knowingly departs from a Windows or macOS convention, or w
 | Color picker | The hex field silently ignores invalid input with no feedback. | 2 | 5 | Low impact; a validation cue is a nice-to-have, not a correctness issue. |
 | Canvas | The edge/corner resize handles are 10 px — a small hit target. | 3 | 5 | Enlarging the grab area without making the dots visually heavier needs a little care; low frequency of use. |
 | Eyedropper | What tool to land on after a pick. | 2 | 6 | Switches to the bucket, so the sampled color is ready to fill with in one step. |
+| Appearance | Defaults to **Light** rather than following the macOS system appearance, which is the platform norm for a new app. | 2 | 4 | Paint is a light-chrome app, so a first launch should look like what it's imitating even on a dark-mode Mac. System is one click away in Settings and is remembered, so this only shapes the first launch. |
 | Save panel | The format popup reads "PNG image" / "JPEG image", not Paint's `JPEG (*.jpg;*.jpeg)` glob style. | 2 | 4 | AppKit owns those titles — `showsContentTypes` derives each from the UTI's `localizedDescription`, with no API to override them. Custom titles would mean dropping it for an accessory view, an `NSPopUpButton`, and a `define_class!` action, then re-implementing the extension rewriting and overwrite confirmation AppKit gives free — ~120 lines of runtime-only-verifiable AppKit for a cosmetic gain. The globs also add little here, since `extensionHidden = false` keeps the extension visible in the name field. |
 
 ### Not observable headlessly
