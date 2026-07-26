@@ -43,6 +43,26 @@ export const ENCODERS: Record<string, Encoding> = {
 
 export const PNG_ENCODING: Encoding = { type: "image/png" };
 
+// What the save panel's format popup offers, in order — the first is what an
+// extension-less name becomes. Uniform type identifiers, because that's what
+// NSSavePanel's allowedContentTypes takes; AppKit derives each menu item's
+// label and extension from the UTI itself, so there are no display names to
+// keep in sync here.
+//
+// `ext` records which ENCODERS entry each UTI resolves to, so a format can't be
+// offered in the popup without something able to write it — a test asserts it.
+//
+// GIF is writable (see ENCODERS) but deliberately absent: it quantizes to 256
+// colors, so offering it beside PNG would invite silent quality loss. A file
+// that was already a GIF still re-saves as one.
+export const SAVE_FORMATS = [
+  { uti: "public.png", ext: "png" },
+  { uti: "public.jpeg", ext: "jpeg" },
+  { uti: "com.microsoft.bmp", ext: "bmp" },
+];
+
+export const SAVE_UTIS = SAVE_FORMATS.map((f) => f.uti);
+
 // The final path component's extension, lowercased; "" when there is none.
 // Anchored past any separator so a dot in a directory name ("~/v1.2/sketch")
 // doesn't read as an extension.

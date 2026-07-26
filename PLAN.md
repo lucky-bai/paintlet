@@ -21,7 +21,7 @@ Where the app stands today, grouped by state.
 - **Text** — multi-line editor with an editable font combobox that previews each choice in its own typeface (any installed font can be typed; a broad macOS list is suggested, and the full installed set is offered where the Local Font Access API is available), a size field with large ± steppers (native spinners hidden), and bold / italic / underline / strikethrough; typed in Color 1. The floating box has a grab bar to reposition it before committing, and placing it never scrolls (shifts) the canvas. Rasterized on commit and not re-editable afterward.
 - **Selection** — rectangular marquee (**Shift** = square) and free-form lasso, with marching ants along the exact outline; drag inside to move; eight resize grips scale it (**Shift** keeps the aspect ratio); **Delete** clears it; **Select All** (⌘A). Selections are **transparent**: the background color (Color 2) inside a moved or pasted selection drops out, so it never stamps a solid block over what's underneath. Copy/cut/delete on a lasso clip to the outline, not its bounding box. The selection survives switching between the marquee and the lasso.
 - **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
-- **Save / Open** — Opens PNG, JPEG, GIF, WebP, BMP, and HEIC. Save is one step: an already-saved file re-writes in place, and a new document opens the native save panel directly — no extra in-app dialog. Format is chosen by **typing the extension** (`.png`, `.jpg`, `.bmp`); it defaults to PNG, and JPEG encodes at 0.92. WebP and HEIC open but can't be written, so ⌘S on one goes to the save panel instead of overwriting it. Window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
+- **Save / Open** — Opens PNG, JPEG, GIF, WebP, BMP, and HEIC. Save is one step: an already-saved file re-writes in place, and a new document opens the native save panel directly — no extra in-app dialog. The panel carries a **format popup** — PNG / JPEG / Windows BMP, like Paint's "Save as type" — which picks the encoder by rewriting the filename's extension; typing an extension works too. Defaults to PNG, and JPEG encodes at 0.92. WebP and HEIC open but can't be written, so ⌘S on one goes to the save panel instead of overwriting it. Window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
 - **Image ops** — Resize (by pixels or percentage, aspect-locked by default, unlock to stretch; always resamples smoothly, as Paint does), Crop to selection, Flip Horizontal / Vertical, Rotate 90° right / left / 180°, and edge/corner drag handles on the canvas that crop or extend it (white fill, dashed preview). All undoable across the size change.
 - **Native macOS menu bar** — File / Edit / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All. The image operations live under Edit (no separate Image menu). The system's auto-inserted Edit items are gone: Dictation / Emoji & Symbols via their NSUserDefaults switches at startup, Writing Tools / AutoFill stripped from the installed menu (they have no switch). The app menu is About Paintlet + Quit (Hide / Hide Others / Show All removed); About shows the version, a link to the GitHub repo, and the MIT license line.
 - **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
@@ -103,6 +103,7 @@ React (chrome + config)  ──►  Zustand (UI state)
 paintlet/
 ├─ src-tauri/
 │  ├─ src/lib.rs                  # menu setup, image + About-window commands
+│  ├─ src/save_panel.rs           # NSSavePanel with a native format popup
 │  ├─ src/main.rs                 # thin binary entry → lib::run()
 │  ├─ capabilities/default.json   # main-window permissions (dialog, fs, …)
 │  ├─ capabilities/about.json     # About window: close + open-URL only
@@ -340,9 +341,22 @@ Layers · transparency / alpha · AI features (Cocreator, generative fill) · st
 The **native dialog** picks the path (`plugin-dialog`), but the **bytes move through our own Rust commands** — `read_image_file` and `write_image_file` in `src-tauri/src/lib.rs`. That indirection is the point: `plugin-fs` is scope-restricted, so reading and writing arbitrary user-chosen paths through it would mean either a permissive scope or a failure on every folder we didn't anticipate. A custom command is already trusted, so the user's choice in the file panel is the only authorization needed.
 
 - **Open** — `read_image_file` → `createImageBitmap` → `engine.loadBitmap()`, which resizes the canvas, draws, and seeds history in one step.
-- **Save** — `canvas.toBlob()` → `write_image_file`. One step: an already-saved file re-writes in place; a new document goes straight to the native save panel. The format follows the extension typed there, defaulting to PNG.
+- **Save** — `canvas.toBlob()` → `write_image_file`. One step: an already-saved file re-writes in place; a new document goes straight to the save panel, whose **format popup** (PNG / JPEG / Windows BMP) chooses the encoder.
 
-**There is no format dropdown**, and the `filters` passed to the dialog plugin do not create one. NSSavePanel has no built-in file-type popup — the "File Format:" control in Preview and TextEdit is an `accessoryView` each app supplies itself — and `rfd` (under `tauri-plugin-dialog`) flattens every filter into one `setAllowedFileTypes` array, discarding the filter names. The names therefore only govern which typed extensions the panel accepts; AppKit appends the first entry when an unlisted one is typed. Adding a real popup means building the panel ourselves with `objc2-app-kit` and an `NSPopUpButton` accessory view.
+### Why the save panel is hand-built
+
+The format popup is the reason `src-tauri/src/save_panel.rs` exists rather than a call to `tauri-plugin-dialog`'s `save()`. That plugin goes through `rfd`, whose macOS backend flattens every filter into a single `setAllowedFileTypes` array and **discards the filter names**, so no format control ever appears — the user's only way to reach JPEG or BMP was to type the extension, which macOS then hid.
+
+NSSavePanel can show the control itself via `showsContentTypes` (macOS 14+) fed by `allowedContentTypes`, so there's no accessory view and no custom target/action class. AppKit owns the popup, derives each menu item's label and extension from the UTI, rewrites the filename's extension as the selection changes, and runs its own overwrite confirmation against the final name.
+
+That last part is what keeps the design simple: because the popup works *by writing the extension*, the extension stays the single source of truth for which encoder runs, and `encodingFor(path)` needs no notion of a separately-selected format. `SAVE_FORMATS` in `io/formats.ts` pairs each UTI with the `ENCODERS` entry it resolves to, and a test asserts the pairing, so a format can't be offered in the popup without something able to write it.
+
+Two fallbacks, because a missing popup shouldn't block a save:
+
+- On macOS 13 and earlier the selector doesn't exist. The panel probes with `respondsToSelector:` and reports `supported: false` rather than crashing — distinct from a cancel, so the frontend can tell them apart.
+- Any error from the command drops through to the plugin dialog (no popup, extension-typing only).
+
+The command is deliberately **synchronous**: AppKit panels are main-thread-only and `runModal` spins its own event loop, so the work hops to the main thread and the command blocks on a channel. Tauri runs sync commands on a worker thread, so blocking there holds up nothing the panel needs.
 
 ### Which formats, and why they differ by direction
 
@@ -395,14 +409,15 @@ Places where Paintlet knowingly departs from a Windows or macOS convention, or w
 | Selection | Transparent selection is always on; classic Paint defaults to *opaque* and makes transparency a toggle. | 3 | 5 | Matches the explicit request ("treat the background as transparent when moving"). A toggle is more faithful but adds a control; revisit if opaque moves are wanted. |
 | Selection | A free-form (lasso) selection can't be resized — grips appear only on the rectangular Select tool. | 3 | 5 | Deliberate: the lasso moves, and you switch to Select to scale. Documented rather than adding lasso-bbox grips. |
 | Zoom | ⌘0 = actual size and ⌘9 = fit; most image editors map ⌘0 to fit. | 2 | 4 | Defensible (Preview-like), non-conflicting, and changing it would surprise users who've learned it. |
-| Save | No format dropdown: JPEG or BMP require typing the extension, and macOS hides the appended `.png`, so the save panel offers no cue that the format is even a choice. Windows Paint has a "Save as type" popup, and Mac apps like Preview supply one too. | 5 | 8 | Needs a hand-built `NSSavePanel` with an `NSPopUpButton` accessory view — `rfd` cannot express one. |
 | Color picker | The hex field silently ignores invalid input with no feedback. | 2 | 5 | Low impact; a validation cue is a nice-to-have, not a correctness issue. |
 | Canvas | The edge/corner resize handles are 10 px — a small hit target. | 3 | 5 | Enlarging the grab area without making the dots visually heavier needs a little care; low frequency of use. |
 | Eyedropper | What tool to land on after a pick. | 2 | 6 | Switches to the bucket, so the sampled color is ready to fill with in one step. |
 
 ### Not observable headlessly
 
-The native-shell items — maximized window, the Edit-menu merge, the Dictation/Emoji suppression, on-disk save, trackpad-pinch zoom, and the About window (its own OS window, with the minimize/zoom buttons hidden via AppKit) — depend on the Tauri shell and can't be exercised in the headless web build, so they aren't asserted by the e2e suite. They're implemented and wired; confirm with one pass in `pnpm dev`.
+The native-shell items — maximized window, the Edit-menu merge, the Dictation/Emoji suppression, on-disk save, trackpad-pinch zoom, the About window (its own OS window, with the minimize/zoom buttons hidden via AppKit), and the save panel's format popup — depend on the Tauri shell and can't be exercised in the headless web build, so they aren't asserted by the e2e suite. They're implemented and wired; confirm with one pass in `pnpm dev`.
+
+Note also that **CI does not build the Rust shell** (see the comment at the top of `ci.yml`): it runs typecheck, bundle, unit tests, and e2e only. A green check therefore says nothing about `src-tauri/` — run `cargo check` locally when touching it, and add a Rust job if the shell starts changing often.
 
 ---
 

@@ -1,6 +1,8 @@
 use tauri::ipc::Response;
 use tauri::Manager;
 
+mod save_panel;
+
 // Open (or re-focus) the About window.
 //
 // About is the one dialog that's a real OS window rather than an in-app panel:
@@ -80,6 +82,43 @@ fn read_image_file(path: String) -> Result<Response, String> {
 #[tauri::command]
 fn write_image_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, &data).map_err(|e| e.to_string())
+}
+
+// Show the save panel that has a real format popup — see save_panel.rs for why
+// this can't come from the dialog plugin.
+//
+// AppKit panels are main-thread-only and runModal spins its own event loop, so
+// the work is hopped to the main thread and this command blocks on a channel
+// until it closes. Blocking is safe precisely because this is a *synchronous*
+// command: Tauri runs those on a worker thread, never on the main thread or the
+// async runtime, so nothing the panel needs is held up waiting on us.
+#[tauri::command]
+fn save_image_dialog(
+    app: tauri::AppHandle,
+    request: save_panel::SaveRequest,
+) -> Result<save_panel::SaveResponse, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let (tx, rx) = std::sync::mpsc::channel();
+        app.run_on_main_thread(move || {
+            // On the main thread by construction, so this marker is sound.
+            let mtm = objc2::MainThreadMarker::new()
+                .expect("run_on_main_thread ran off the main thread");
+            let _ = tx.send(save_panel::run(mtm, &request));
+        })
+        .map_err(|e| e.to_string())?;
+
+        rx.recv()
+            .map_err(|_| "the save panel closed unexpectedly".to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // No AppKit, so no native format popup; the frontend falls back to the
+        // plugin dialog. Paintlet only ships for macOS, but the shell still has
+        // to compile elsewhere.
+        let _ = (app, request);
+        Ok(save_panel::SaveResponse::unsupported())
+    }
 }
 
 // macOS auto-appends items to any menu titled "Edit": "Start Dictation…",
@@ -162,6 +201,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_image_file,
             write_image_file,
+            save_image_dialog,
             strip_edit_menu_system_items,
             open_about_window
         ])

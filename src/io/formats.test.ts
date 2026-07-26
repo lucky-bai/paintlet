@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ENCODERS,
   OPEN_EXTS,
+  SAVE_FORMATS,
+  SAVE_UTIS,
   canEncode,
   encodingFor,
   extOf,
@@ -47,6 +49,25 @@ describe("encoder table", () => {
     for (const ext of Object.keys(ENCODERS)) {
       expect(OPEN_EXTS).toContain(ext);
     }
+  });
+});
+
+describe("save panel format popup", () => {
+  // The popup chooses a format by rewriting the filename's extension, so every
+  // entry needs an encoder behind it. A UTI without one would look like a real
+  // choice and quietly produce PNG.
+  it("offers only formats that have an encoder", () => {
+    for (const { uti, ext } of SAVE_FORMATS) {
+      expect(ENCODERS, `${uti} has no encoder for .${ext}`).toHaveProperty(ext);
+    }
+  });
+
+  it("leads with PNG, so an extension-less name becomes one", () => {
+    expect(SAVE_FORMATS[0].ext).toBe("png");
+  });
+
+  it("exposes the identifiers in the same order", () => {
+    expect(SAVE_UTIS).toEqual(SAVE_FORMATS.map((f) => f.uti));
   });
 });
 

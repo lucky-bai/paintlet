@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { engine, usePaintStore } from "../state/store";
 import {
   OPEN_EXTS,
+  SAVE_UTIS,
   canEncode,
   encodingFor,
   type Encoding,
@@ -28,15 +29,9 @@ export async function openImage(): Promise<void> {
 }
 
 // File → Save / Save As. An already-saved file re-writes in place with no
-// prompt. Otherwise the native save panel is shown ONCE — no extra in-app step
-// — and the format follows the extension typed into it, defaulting to PNG.
-//
-// The `filters` names below are NOT a format dropdown: NSSavePanel has no
-// built-in one (Preview's "File Format:" popup is an accessoryView it supplies
-// itself), and rfd — under Tauri's dialog plugin — flattens every filter into a
-// single setAllowedFileTypes list, discarding the names. So all these do is
-// decide which typed extensions the panel accepts; an unlisted one gets the
-// first entry appended by AppKit.
+// prompt. Otherwise the save panel is shown ONCE — no extra in-app step — and
+// whichever format its popup lands on decides the encoder, via the extension it
+// writes into the filename.
 export async function saveImage(saveAs = false): Promise<void> {
   const store = usePaintStore.getState();
   const path = store.filePath;
@@ -50,8 +45,49 @@ export async function saveImage(saveAs = false): Promise<void> {
     return;
   }
 
-  const stem = path ? path.replace(/\.[^./\\]+$/, "") : "untitled";
-  const chosen = await save({
+  const chosen = await pickSavePath(path);
+  if (!chosen) return; // cancelled
+
+  // Whatever route produced the path, the extension decides the encoder — the
+  // format popup works by rewriting that extension, so there's one rule here
+  // and no second source of truth. Anything unencodable (or extension-less)
+  // gains a .png rather than being written with mismatched bytes.
+  const dest = canEncode(chosen) ? chosen : `${chosen}.png`;
+
+  await writeTo(dest, encodingFor(dest));
+}
+
+// Ask for a destination, preferring our own panel because it's the only one
+// with a format popup: NSSavePanel can show that control natively
+// (`showsContentTypes`), but tauri-plugin-dialog goes through rfd, which
+// flattens filters into a bare extension list and never enables it.
+//
+// Falls back to the plugin on any failure and on macOS 13 or older, where the
+// control doesn't exist — a missing popup is worth degrading over, not
+// blocking a save for.
+async function pickSavePath(current: string | null): Promise<string | null> {
+  const stem = current ? current.replace(/\.[^./\\]+$/, "") : "untitled";
+  const name = `${basename(stem)}.png`;
+
+  try {
+    const res = await invoke<{ path: string | null; supported: boolean }>(
+      "save_image_dialog",
+      {
+        request: {
+          name,
+          types: SAVE_UTIS,
+          directory: current ? dirname(current) : null,
+        },
+      },
+    );
+    if (res.supported) return res.path;
+  } catch (err) {
+    console.error("Native save panel failed; using the plugin dialog:", err);
+  }
+
+  // The filter names here produce no popup — see above — so they serve only to
+  // decide which typed extensions the panel accepts.
+  return await save({
     defaultPath: `${stem}.png`,
     filters: [
       { name: "PNG image", extensions: ["png"] },
@@ -59,16 +95,16 @@ export async function saveImage(saveAs = false): Promise<void> {
       { name: "BMP image", extensions: ["bmp"] },
     ],
   });
-  if (!chosen) return; // cancelled
+}
 
-  // The format follows the extension the user lands on. Anything we can't
-  // encode — including no extension at all — gains a .png rather than being
-  // written with mismatched bytes. GIF is absent from the panel above because
-  // it quantizes to 256 colors, but stays writable here so ⌘S on a file that
-  // was already a GIF re-saves as one.
-  const dest = canEncode(chosen) ? chosen : `${chosen}.png`;
+function basename(path: string): string {
+  return path.split(/[/\\]/).pop() ?? path;
+}
 
-  await writeTo(dest, encodingFor(dest));
+// Empty for a bare filename, which leaves the panel at its default directory.
+function dirname(path: string): string | null {
+  const cut = path.lastIndexOf("/");
+  return cut > 0 ? path.slice(0, cut) : null;
 }
 
 // Bake any floating selection in, encode the base, and write it to disk.
