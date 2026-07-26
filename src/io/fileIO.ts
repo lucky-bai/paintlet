@@ -28,9 +28,15 @@ export async function openImage(): Promise<void> {
 }
 
 // File → Save / Save As. An already-saved file re-writes in place with no
-// prompt. Otherwise the native save panel is shown ONCE — its file-type popup
-// is where the format is chosen, so there's no extra in-app step: the format is
-// taken from the extension the user lands on (defaulting to PNG).
+// prompt. Otherwise the native save panel is shown ONCE — no extra in-app step
+// — and the format follows the extension typed into it, defaulting to PNG.
+//
+// The `filters` names below are NOT a format dropdown: NSSavePanel has no
+// built-in one (Preview's "File Format:" popup is an accessoryView it supplies
+// itself), and rfd — under Tauri's dialog plugin — flattens every filter into a
+// single setAllowedFileTypes list, discarding the names. So all these do is
+// decide which typed extensions the panel accepts; an unlisted one gets the
+// first entry appended by AppKit.
 export async function saveImage(saveAs = false): Promise<void> {
   const store = usePaintStore.getState();
   const path = store.filePath;
