@@ -93,6 +93,7 @@ async function pickSavePath(current: string | null): Promise<string | null> {
       { name: "PNG image", extensions: ["png"] },
       { name: "JPEG image", extensions: ["jpg", "jpeg"] },
       { name: "BMP image", extensions: ["bmp"] },
+      { name: "GIF image", extensions: ["gif"] },
     ],
   });
 }

@@ -66,6 +66,18 @@ describe("save panel format popup", () => {
     expect(SAVE_FORMATS[0].ext).toBe("png");
   });
 
+  // Pinned as an exact list: the order is what the popup shows, and GIF's
+  // 256-color quantization is the reason it sits at the end rather than beside
+  // PNG. A format added here without thought would change both.
+  it("offers PNG, JPEG, BMP, then GIF", () => {
+    expect(SAVE_FORMATS.map((f) => f.ext)).toEqual([
+      "png",
+      "jpeg",
+      "bmp",
+      "gif",
+    ]);
+  });
+
   it("exposes the identifiers in the same order", () => {
     expect(SAVE_UTIS).toEqual(SAVE_FORMATS.map((f) => f.uti));
   });

@@ -104,6 +104,14 @@ pub fn run(mtm: objc2::MainThreadMarker, req: &SaveRequest) -> SaveResponse {
     // why the format never looked like a choice.
     panel.setExtensionHidden(false);
     panel.setCanSelectHiddenExtension(false);
+    // AppKit shows a Finder-tags field by default, but NSSavePanel only
+    // *collects* tags: its contract expects the app to read -tagNames and apply
+    // them to the file once the save completes (which is why tagging works in
+    // NSDocument apps and nowhere else for free). Paintlet writes bytes through
+    // write_image_file and never reads them back, so anything typed there would
+    // be silently dropped. Hide the field rather than offer a control that does
+    // nothing — Paint has no notion of tagging either.
+    panel.setShowsTagField(false);
     panel.setNameFieldStringValue(&NSString::from_str(&req.name));
 
     if let Some(dir) = &req.directory {

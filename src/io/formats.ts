@@ -52,13 +52,14 @@ export const PNG_ENCODING: Encoding = { type: "image/png" };
 // `ext` records which ENCODERS entry each UTI resolves to, so a format can't be
 // offered in the popup without something able to write it — a test asserts it.
 //
-// GIF is writable (see ENCODERS) but deliberately absent: it quantizes to 256
-// colors, so offering it beside PNG would invite silent quality loss. A file
-// that was already a GIF still re-saves as one.
+// GIF comes last because it quantizes to 256 colors. It writes a real GIF, but
+// a full-color drawing loses color depth doing so, which makes it a deliberate
+// pick rather than something that should sit next to PNG at the top.
 export const SAVE_FORMATS = [
   { uti: "public.png", ext: "png" },
   { uti: "public.jpeg", ext: "jpeg" },
   { uti: "com.microsoft.bmp", ext: "bmp" },
+  { uti: "com.compuserve.gif", ext: "gif" },
 ];
 
 export const SAVE_UTIS = SAVE_FORMATS.map((f) => f.uti);
