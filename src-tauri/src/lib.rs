@@ -24,14 +24,45 @@ fn open_about_window(app: tauri::AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("about.html".into()),
     )
     .title("About Paintlet")
-    .inner_size(340.0, 360.0)
+    .inner_size(340.0, 300.0)
     .resizable(false)
     .maximizable(false)
     .minimizable(false)
     .center()
     .build()
-    .map(|_| ())
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    #[cfg(target_os = "macos")]
+    hide_minimize_and_zoom(&app, "about");
+
+    Ok(())
+}
+
+// A macOS About box shows only a close button. Building the window
+// non-minimizable / non-maximizable merely greys those two out, which reads as
+// "temporarily unavailable" rather than "not applicable" — so remove them.
+// AppKit may only be touched on the main thread.
+#[cfg(target_os = "macos")]
+fn hide_minimize_and_zoom(app: &tauri::AppHandle, label: &'static str) {
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        use objc2_app_kit::{NSWindow, NSWindowButton};
+
+        let Some(win) = app.get_webview_window(label) else { return };
+        let Ok(ptr) = win.ns_window() else { return };
+        // SAFETY: ns_window() hands back the NSWindow backing this Tauri
+        // window, and we're inside run_on_main_thread — the only place AppKit
+        // views may be touched.
+        let ns_window: &NSWindow = unsafe { &*ptr.cast::<NSWindow>() };
+        for button in [
+            NSWindowButton::MiniaturizeButton,
+            NSWindowButton::ZoomButton,
+        ] {
+            if let Some(b) = ns_window.standardWindowButton(button) {
+                b.setHidden(true);
+            }
+        }
+    });
 }
 
 // Read a file off disk and hand the raw bytes back to the webview as an

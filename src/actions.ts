@@ -1,6 +1,6 @@
 import { ask } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { engine, usePaintStore } from "./state/store";
+import { DEFAULT_CANVAS_SIZE, engine, usePaintStore } from "./state/store";
 import { stageHooks } from "./state/stageHooks";
 import { STAGE_PADDING, viewport } from "./state/viewport";
 import { openImage, saveImage } from "./io/fileIO";
@@ -35,8 +35,7 @@ export async function newDocument(): Promise<void> {
     });
     if (!ok) return;
   }
-  const { w, h } = usePaintStore.getState().defaultCanvasSize;
-  engine.newDocument(w, h);
+  engine.newDocument(DEFAULT_CANVAS_SIZE.w, DEFAULT_CANVAS_SIZE.h);
   usePaintStore.getState().setFilePath(null);
 }
 

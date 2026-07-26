@@ -14,9 +14,15 @@ import type {
 // every stroke. Components import `engine` directly for imperative calls.
 export const engine = new CanvasEngine();
 
-// Theme and the default new-image size are read once at startup and written back
-// on every change; the read/write helpers live in ./settings so the About
-// window's webview can share them without importing the engine.
+// Size a new document opens at. Matches CanvasEngine's own width/height
+// defaults, which is what attach() falls back to before anything is loaded.
+// Not user-configurable — Paint has no such preference, and File → New followed
+// by Image → Resize covers the rare case.
+export const DEFAULT_CANVAS_SIZE = { w: 800, h: 600 };
+
+// The theme is read once at startup and written back on every change; the
+// read/write helpers live in ./settings so the About window's webview can share
+// them without importing the engine.
 const initialSettings = loadSettings();
 
 interface PaintState {
@@ -29,7 +35,6 @@ interface PaintState {
   shapeSize: number; // discrete stroke width for shape tools (1/3/5/8)
   textStyle: TextStyle;
   imageSize: { w: number; h: number }; // mirrored from the engine
-  defaultCanvasSize: { w: number; h: number }; // size a new image opens at
   view: ViewTransform; // zoom/pan
   cursorPos: Point | null; // for the status bar
   filePath: string | null;
@@ -55,7 +60,6 @@ interface PaintState {
   setZoom: (z: number) => void;
   setCursorPos: (p: Point | null) => void;
   setTheme: (t: Theme) => void;
-  setDefaultCanvasSize: (size: { w: number; h: number }) => void;
   setFilePath: (p: string | null) => void;
   setResizeDialogOpen: (open: boolean) => void;
   setSettingsDialogOpen: (open: boolean) => void;
@@ -70,7 +74,7 @@ interface PaintState {
   }) => void;
 }
 
-export const usePaintStore = create<PaintState>((set, get) => ({
+export const usePaintStore = create<PaintState>((set) => ({
   activeToolId: "pencil",
   previousToolId: "pencil",
   color1: "#000000",
@@ -85,8 +89,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
     underline: false,
     strike: false,
   },
-  imageSize: { ...initialSettings.defaultCanvasSize },
-  defaultCanvasSize: { ...initialSettings.defaultCanvasSize },
+  imageSize: { ...DEFAULT_CANVAS_SIZE },
   view: { zoom: 1, panX: 0, panY: 0 },
   cursorPos: null,
   filePath: null,
@@ -123,12 +126,8 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   setZoom: (z) => set((s) => ({ view: { ...s.view, zoom: z } })),
   setCursorPos: (p) => set({ cursorPos: p }),
   setTheme: (t) => {
-    saveSettings({ theme: t, defaultCanvasSize: get().defaultCanvasSize });
+    saveSettings({ theme: t });
     set({ theme: t });
-  },
-  setDefaultCanvasSize: (size) => {
-    saveSettings({ theme: get().theme, defaultCanvasSize: size });
-    set({ defaultCanvasSize: size });
   },
   setFilePath: (p) => set({ filePath: p }),
   setResizeDialogOpen: (open) => set({ resizeDialogOpen: open }),

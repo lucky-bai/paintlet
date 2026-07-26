@@ -43,7 +43,7 @@ A **universal** build (Apple Silicon + Intel), signed and notarized by Apple —
 - **Zoom & pan** — 0.25×–8× crisp pixelated scaling, fit-to-window, pinch/⌘-wheel zoom, and space-drag panning.
 - **Undo / redo** — ⌘Z / ⇧⌘Z across every edit, including resizes and crops.
 - **Native macOS UI** — real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
-- **Settings & theme** (⌘,) — System / Light / Dark appearance and default new-image size, both persisted.
+- **Settings & theme** (⌘,) — System / Light / Dark appearance, persisted across launches.
 
 Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design, architecture, and roadmap.
 

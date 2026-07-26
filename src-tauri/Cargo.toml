@@ -32,6 +32,6 @@ serde_json = "1"
 # (Dictation, Emoji, Writing Tools, AutoFill). Same versions tauri itself uses.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSMenu", "NSMenuItem"] }
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSMenu", "NSMenuItem", "NSWindow", "NSButton", "NSControl", "NSView"] }
 objc2-foundation = { version = "0.3", features = ["NSUserDefaults", "NSString"] }
 

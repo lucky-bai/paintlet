@@ -1,7 +1,8 @@
 import type { Theme } from "../engine/types";
 
-// Persisted app settings (theme + default new-image size), stored in
-// localStorage so they survive across launches.
+// Persisted app settings, stored in localStorage so they survive across
+// launches. Just the theme — Paint has no preferences window, and theme is the
+// one thing a macOS app is expected to let you pin.
 //
 // This module is deliberately free of any engine or store import: the About
 // window is a separate webview that needs the theme but must NOT instantiate a
@@ -13,18 +14,9 @@ export const SETTINGS_KEY = "paintlet.settings";
 
 export interface PersistedSettings {
   theme: Theme;
-  defaultCanvasSize: { w: number; h: number };
 }
 
-const DEFAULTS: PersistedSettings = {
-  theme: "system",
-  defaultCanvasSize: { w: 800, h: 600 },
-};
-
-const clampDim = (n: unknown, fallback: number): number => {
-  const v = Math.round(Number(n));
-  return Number.isFinite(v) && v >= 1 && v <= 10000 ? v : fallback;
-};
+const DEFAULTS: PersistedSettings = { theme: "system" };
 
 const isTheme = (t: unknown): t is Theme =>
   t === "light" || t === "dark" || t === "system";
@@ -36,13 +28,7 @@ export function loadSettings(): PersistedSettings {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULTS;
     const p = JSON.parse(raw) as Partial<PersistedSettings>;
-    return {
-      theme: isTheme(p.theme) ? p.theme : DEFAULTS.theme,
-      defaultCanvasSize: {
-        w: clampDim(p.defaultCanvasSize?.w, DEFAULTS.defaultCanvasSize.w),
-        h: clampDim(p.defaultCanvasSize?.h, DEFAULTS.defaultCanvasSize.h),
-      },
-    };
+    return { theme: isTheme(p.theme) ? p.theme : DEFAULTS.theme };
   } catch {
     return DEFAULTS;
   }

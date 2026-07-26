@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { engine, usePaintStore } from "../../state/store";
-import { cx } from "../../lib/cx";
 import { DialogFrame } from "./DialogFrame";
+import { SegmentedControl } from "../SegmentedControl";
+
+const UNITS = [
+  { id: "px" as const, label: "Pixels" },
+  { id: "pct" as const, label: "Percent" },
+];
 
 const MIN = 1;
 const MAX = 8192;
@@ -68,23 +73,13 @@ export function ResizeDialog() {
         else if (e.key === "Escape") close();
       }}
     >
-      <div className="mb-3 flex gap-1">
-        {(["px", "pct"] as const).map((u) => (
-          <button
-            key={u}
-            type="button"
-            onClick={() => setUnit(u)}
-            className={cx(
-              "flex-1 rounded-md px-2.5 py-1 text-xs",
-              unit === u
-                ? "bg-[var(--vp-accent)] text-white"
-                : "text-ink hover:bg-hover",
-            )}
-          >
-            {u === "px" ? "Pixels" : "Percent"}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        className="mb-3"
+        ariaLabel="Resize unit"
+        value={unit}
+        options={UNITS}
+        onChange={setUnit}
+      />
 
       <label className="mb-2 flex items-center justify-between text-xs text-ink-muted">
         Width
@@ -96,7 +91,7 @@ export function ResizeDialog() {
             value={width}
             autoFocus
             onChange={(e) => changeW(Number(e.target.value))}
-            className="w-20 rounded border border-hairline bg-work px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
+            className="w-20 rounded border border-hairline bg-surface-raised px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
           />
           {unit === "px" ? "px" : "%"}
         </span>
@@ -111,7 +106,7 @@ export function ResizeDialog() {
             max={unit === "px" ? MAX : 1000}
             value={height}
             onChange={(e) => changeH(Number(e.target.value))}
-            className="w-20 rounded border border-hairline bg-work px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
+            className="w-20 rounded border border-hairline bg-surface-raised px-2 py-1 text-right text-xs text-ink tabular-nums outline-none focus:border-[var(--vp-accent)]"
           />
           {unit === "px" ? "px" : "%"}
         </span>
