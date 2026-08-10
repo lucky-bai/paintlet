@@ -25,3 +25,12 @@ dist-ssr
 
 # e2e screenshots
 tests/artifacts
+
+# Mac App Store signing material (see docs/RELEASING-MAS.md).
+# The provisioning profile carries no private key, but it is tied to one Apple
+# account and expires yearly — re-download it rather than committing a stale one.
+src-tauri/*.provisionprofile
+# App Store Connect API private key. This one IS a secret.
+AuthKey_*.p8
+# Installer package built for upload.
+*.pkg

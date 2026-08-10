@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Extra Info.plist keys. Tauri looks for an Info.plist next to tauri.conf.json
+  and merges it into the generated bundle plist, so this file needs no wiring up.
+
+  Tauri already fills in the binary name, bundle identifier, version string,
+  category, and minimum system version, so none of those are repeated here.
+  Only add keys Tauri has no opinion about.
+
+  This applies to BOTH builds — the Developer ID DMG and the App Store package.
+  The one key below is harmless outside the App Store.
+-->
+<plist version="1.0">
+<dict>
+    <!--
+      Export-compliance declaration. Paintlet ships no encryption of its own and
+      makes no network connections at all: the plugin list is dialog, fs,
+      clipboard, and opener, and opener only hands a URL to the default browser.
+
+      Declaring this statically stops App Store Connect from asking the
+      encryption questionnaire on every single upload.
+    -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+</dict>
+</plist>

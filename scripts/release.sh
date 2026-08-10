@@ -104,15 +104,30 @@ step "Gatekeeper assessment"
 spctl --assess --type open --context context:primary-signature -v "$DMG"
 ok "Trusted as Notarized Developer ID"
 
+# ── stable-name copy ─────────────────────────────────────────────────────────
+# The landing page links to releases/latest/download/Paintlet-macOS.dmg, which
+# GitHub resolves to the newest release at request time. That URL only works if
+# every release contains an asset with this exact filename, and the versioned
+# name changes every release — hence a second copy under a fixed name. Both are
+# uploaded: the versioned one keeps each release individually archivable.
+#
+# Copied after stapling on purpose: the ticket lives inside the DMG, so a copy
+# made earlier would be an unstapled duplicate.
+step "Creating the stable-name copy"
+ALIAS_DMG="$(dirname "$DMG")/${APP_NAME}-macOS.dmg"
+cp "$DMG" "$ALIAS_DMG"
+xcrun stapler validate "$ALIAS_DMG" >/dev/null || die "The stable-name copy is not stapled"
+ok "Alias: $ALIAS_DMG"
+
 # ── optional: publish a GitHub release ───────────────────────────────────────
 if [[ "$PUBLISH" == "1" ]]; then
   step "Publishing GitHub release v$VERSION"
   command -v gh >/dev/null || die "gh CLI not found"
   TAG="v$VERSION"
   if gh release view "$TAG" >/dev/null 2>&1; then
-    gh release upload "$TAG" "$DMG" --clobber
+    gh release upload "$TAG" "$DMG" "$ALIAS_DMG" --clobber
   else
-    gh release create "$TAG" "$DMG" --title "$APP_NAME $VERSION" --generate-notes
+    gh release create "$TAG" "$DMG" "$ALIAS_DMG" --title "$APP_NAME $VERSION" --generate-notes
   fi
   ok "Release $TAG published"
 fi
@@ -122,6 +137,7 @@ step "Done"
 echo ""
 echo "Distributable DMG:"
 echo "  $PROJECT_DIR/$DMG"
+echo "  $PROJECT_DIR/$ALIAS_DMG  (stable name the website links to)"
 echo ""
 echo "Universal binary — runs native on Apple Silicon and Intel."
 [[ "$PUBLISH" == "1" ]] || echo "Re-run with PUBLISH=1 to attach it to a GitHub release."
