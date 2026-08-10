@@ -23,7 +23,7 @@ Paintlet ships under **Elaine Ye's (Yinan Ye) Apple Developer account**, Apple T
 Two consequences worth knowing up front:
 
 - **The store listing names her as the seller.** Unlike a DMG, where the signing identity only surfaces in Gatekeeper, the App Store shows the account holder publicly and permanently.
-- **You need a role on that team.** She adds you in App Store Connect as an **App Manager**, which is what lets you upload builds, edit the listing, and submit for review.
+- **Everything below is done signed in as her Apple ID**, as the Account Holder — the certificates, the App ID, the provisioning profile, the API key, and the App Store Connect listing. There is no separate team member to invite. Expect two-factor prompts to land on her devices, so the initial setup is easiest done together in one sitting.
 
 If the account ever changes, update the team ID in **both** keys of [`src-tauri/Entitlements.plist`](../src-tauri/Entitlements.plist). The release script cross-checks them against the signing certificate and refuses to build on a mismatch, so a stale value fails immediately rather than as an opaque rejection after upload.
 
@@ -72,7 +72,7 @@ export APPLE_API_KEY_ID="XXXXXXXXXX"
 export APPLE_API_ISSUER="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
-An API key is preferred over an Apple ID plus app-specific password: it is scoped, revocable, and works unattended in CI.
+An API key is preferred over an Apple ID plus app-specific password: it is scoped, revocable, and works unattended in CI. It also decouples uploads from the account holder — once the key exists, `release-mas.sh` uploads without anyone signing in or clearing a two-factor prompt. Only listing edits and review submission still need the web session.
 
 ### Create the app record
 
@@ -136,7 +136,7 @@ Enforcement is not perfectly consistent, so treat the description mention as low
 
 ### Required assets and answers
 
-- **Screenshots** at exactly 1280×800, 1440×900, 2560×1600, or 2880×1800. The landing page captures are 1300×946 and will be refused; re-capture at a supported size.
+- **Screenshots** at exactly 1280×800, 1440×900, 2560×1600, or 2880×1800 — all 16:10. The landing page captures in `site/assets/` are 2496×1886 and 2600×1892, roughly 4:3, so they will be refused and cannot simply be scaled. Re-capture with the window at 1440×900 on a Retina display for a 2880×1800 result.
 - **Privacy policy URL:** <https://lucky-bai.github.io/paintlet/privacy.html> — required even for a free app that collects nothing.
 - **App Privacy questionnaire:** "Data Not Collected" across the board. Accurate, and the fastest path through review.
 - **Age rating:** no objectionable content in any category.

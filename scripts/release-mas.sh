@@ -71,19 +71,24 @@ fi
 
 # The .app signing cert. Apple renamed this type; accept either name so the
 # script works whichever vintage of certificate is in the keychain.
+#
+# The trailing `|| true` matters: under `set -o pipefail`, grep finding no match
+# fails the pipeline, and a failing command substitution would abort the script
+# under `set -e` before the explanatory die below ever runs. An empty result has
+# to reach the check to be reported. Same for every detection pipeline here.
 APP_IDENTITY="$(security find-identity -v -p codesigning \
   | grep -m1 -E 'Apple Distribution|3rd Party Mac Developer Application' \
-  | sed -E 's/.*"(.*)".*/\1/')"
+  | sed -E 's/.*"(.*)".*/\1/' || true)"
 [[ -n "$APP_IDENTITY" ]] || die "No 'Apple Distribution' identity in the keychain — a Developer ID cert will NOT work for the App Store (docs/RELEASING-MAS.md §1)"
 ok "App signing identity: $APP_IDENTITY"
 
 # The .pkg signing cert. Installer certs are not code-signing identities, so
 # they live in a different list — hence find-certificate rather than find-identity.
 INSTALLER_IDENTITY="$(security find-certificate -a -c 'Mac Installer Distribution' -Z 2>/dev/null \
-  | sed -nE 's/^ *"alis"<blob>="(.*)"$/\1/p' | head -n1)"
+  | sed -nE 's/^ *"alis"<blob>="(.*)"$/\1/p' | head -n1 || true)"
 if [[ -z "$INSTALLER_IDENTITY" ]]; then
   INSTALLER_IDENTITY="$(security find-certificate -a -c '3rd Party Mac Developer Installer' -Z 2>/dev/null \
-    | sed -nE 's/^ *"alis"<blob>="(.*)"$/\1/p' | head -n1)"
+    | sed -nE 's/^ *"alis"<blob>="(.*)"$/\1/p' | head -n1 || true)"
 fi
 [[ -n "$INSTALLER_IDENTITY" ]] || die "No 'Mac Installer Distribution' certificate in the keychain — needed to sign the .pkg (docs/RELEASING-MAS.md §1)"
 ok "Installer identity: $INSTALLER_IDENTITY"
@@ -94,9 +99,9 @@ ok "Installer identity: $INSTALLER_IDENTITY"
 # upload. Catch it in two seconds instead.
 step "Cross-checking Apple Team ID"
 CERT_TEAM="$(sed -E 's/.*\(([A-Z0-9]{10})\)$/\1/' <<<"$APP_IDENTITY")"
-ENT_TEAM="$("$PLISTBUDDY" -c 'Print :com.apple.developer.team-identifier' "$ENTITLEMENTS")"
-ENT_APPID="$("$PLISTBUDDY" -c 'Print :com.apple.application-identifier' "$ENTITLEMENTS")"
-BUNDLE_ID="$(sed -nE 's/.*"identifier": *"([^"]+)".*/\1/p' src-tauri/tauri.conf.json | head -n1)"
+ENT_TEAM="$("$PLISTBUDDY" -c 'Print :com.apple.developer.team-identifier' "$ENTITLEMENTS" 2>/dev/null || true)"
+ENT_APPID="$("$PLISTBUDDY" -c 'Print :com.apple.application-identifier' "$ENTITLEMENTS" 2>/dev/null || true)"
+BUNDLE_ID="$(sed -nE 's/.*"identifier": *"([^"]+)".*/\1/p' src-tauri/tauri.conf.json | head -n1 || true)"
 
 [[ "$CERT_TEAM" == "$ENT_TEAM" ]] \
   || die "Team mismatch: certificate is team '$CERT_TEAM' but Entitlements.plist says '$ENT_TEAM'. Update both keys in src-tauri/Entitlements.plist."
@@ -114,10 +119,10 @@ else
   ok "Profile matches $BUNDLE_ID"
 fi
 
-VERSION="$(sed -nE 's/.*"version": *"([^"]+)".*/\1/p' src-tauri/tauri.conf.json | head -n1)"
+VERSION="$(sed -nE 's/.*"version": *"([^"]+)".*/\1/p' src-tauri/tauri.conf.json | head -n1 || true)"
 # CFBundleVersion comes from bundle.macOS.bundleVersion in the overlay, kept
 # separate from the marketing version so a rejected build can be re-uploaded.
-BUILD_NUMBER="$(sed -nE 's/.*"bundleVersion": *"([^"]+)".*/\1/p' "$APPSTORE_CONF" | head -n1)"
+BUILD_NUMBER="$(sed -nE 's/.*"bundleVersion": *"([^"]+)".*/\1/p' "$APPSTORE_CONF" | head -n1 || true)"
 [[ -n "$BUILD_NUMBER" ]] || die "No bundleVersion in $APPSTORE_CONF"
 ok "Version $VERSION (build $BUILD_NUMBER)"
 

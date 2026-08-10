@@ -44,9 +44,11 @@ command -v pnpm >/dev/null || die "pnpm not found"
 xcrun --find notarytool >/dev/null 2>&1 || die "notarytool not found — install Xcode Command Line Tools"
 
 # Auto-detect the Developer ID Application identity (the full quoted string).
+# `|| true` keeps a no-match from aborting the script under `set -eo pipefail`
+# before the check below can report it properly.
 IDENTITY="$(security find-identity -v -p codesigning \
   | grep -m1 'Developer ID Application' \
-  | sed -E 's/.*"(.*)".*/\1/')"
+  | sed -E 's/.*"(.*)".*/\1/' || true)"
 [[ -n "$IDENTITY" ]] || die "No 'Developer ID Application' identity in the keychain — import Certificates.p12 first (docs/RELEASING.md §1)"
 ok "Signing identity: $IDENTITY"
 
@@ -55,7 +57,7 @@ xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
   || die "Notary profile '$NOTARY_PROFILE' missing or unreachable — run notarytool store-credentials (docs/RELEASING.md §1)"
 ok "Notary profile: $NOTARY_PROFILE"
 
-VERSION="$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/')"
+VERSION="$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/' || true)"
 ok "Version: $VERSION"
 
 # ── rust targets ─────────────────────────────────────────────────────────────
