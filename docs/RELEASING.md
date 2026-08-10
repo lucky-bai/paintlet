@@ -107,12 +107,15 @@ PUBLISH=1 scripts/release.sh
 
 ```bash
 gh release create vX.Y.Z \
-  "src-tauri/target/universal-apple-darwin/release/bundle/dmg/Paintlet_X.Y.Z_universal.dmg" \
   "src-tauri/target/universal-apple-darwin/release/bundle/dmg/Paintlet-macOS.dmg" \
   --title "Paintlet X.Y.Z" --generate-notes
 ```
 
-**Both assets matter.** The landing page's download button points at `releases/latest/download/Paintlet-macOS.dmg`, which GitHub resolves to the newest release at request time — but only if every release carries an asset with that exact filename. The versioned copy ships alongside it so each release stays individually archivable and old links keep working. One consequence when reading download stats: the count is split across the two assets, so the real total is their sum.
+**Publish exactly one DMG, always under the fixed name `Paintlet-macOS.dmg`.** The landing page's download button points at `releases/latest/download/Paintlet-macOS.dmg`, which GitHub resolves to the newest release at request time — but only if the newest release carries an asset with that exact filename. Tauri's own output name changes every version, so the script copies it to the fixed name and publishes that.
+
+Older versions are still individually reachable, because the tag lives in the URL rather than the filename: `releases/download/v0.1.2/Paintlet-macOS.dmg`. Publishing a second, versioned copy would add nothing and split each release's download count across two assets.
+
+`v0.1.1` carries both names for historical reasons — its versioned URL was public before the fixed name existed, so it stays. Every release after it has one asset.
 
 ## 3. What the script does
 
@@ -127,7 +130,7 @@ In order, exiting on the first failure:
 7. `stapler staple` + `stapler validate`.
 8. `spctl --assess` — confirms Gatekeeper trusts it.
 9. Copies the DMG to `Paintlet-macOS.dmg` and re-validates the staple. The copy happens after stapling because the ticket lives inside the DMG.
-10. If `PUBLISH=1`, creates/updates the GitHub release and uploads both DMGs.
+10. If `PUBLISH=1`, creates/updates the GitHub release and uploads that one DMG.
 
 ## 4. Verifying a build
 

@@ -106,20 +106,24 @@ step "Gatekeeper assessment"
 spctl --assess --type open --context context:primary-signature -v "$DMG"
 ok "Trusted as Notarized Developer ID"
 
-# ── stable-name copy ─────────────────────────────────────────────────────────
+# ── the published asset ──────────────────────────────────────────────────────
 # The landing page links to releases/latest/download/Paintlet-macOS.dmg, which
-# GitHub resolves to the newest release at request time. That URL only works if
-# every release contains an asset with this exact filename, and the versioned
-# name changes every release — hence a second copy under a fixed name. Both are
-# uploaded: the versioned one keeps each release individually archivable.
+# GitHub resolves to the newest release at request time. That only works if the
+# newest release carries an asset with this exact filename, and Tauri's output
+# name changes every version — so the published asset always uses a fixed name.
+#
+# Exactly one DMG is published per release. Older versions stay individually
+# reachable because the tag is in the URL, not the filename:
+# releases/download/vX.Y.Z/Paintlet-macOS.dmg. A second, versioned copy would
+# only split the download counts across two assets.
 #
 # Copied after stapling on purpose: the ticket lives inside the DMG, so a copy
 # made earlier would be an unstapled duplicate.
-step "Creating the stable-name copy"
-ALIAS_DMG="$(dirname "$DMG")/${APP_NAME}-macOS.dmg"
-cp "$DMG" "$ALIAS_DMG"
-xcrun stapler validate "$ALIAS_DMG" >/dev/null || die "The stable-name copy is not stapled"
-ok "Alias: $ALIAS_DMG"
+step "Naming the release asset"
+RELEASE_DMG="$(dirname "$DMG")/${APP_NAME}-macOS.dmg"
+cp "$DMG" "$RELEASE_DMG"
+xcrun stapler validate "$RELEASE_DMG" >/dev/null || die "The release asset is not stapled"
+ok "Release asset: $RELEASE_DMG"
 
 # ── optional: publish a GitHub release ───────────────────────────────────────
 if [[ "$PUBLISH" == "1" ]]; then
@@ -127,9 +131,9 @@ if [[ "$PUBLISH" == "1" ]]; then
   command -v gh >/dev/null || die "gh CLI not found"
   TAG="v$VERSION"
   if gh release view "$TAG" >/dev/null 2>&1; then
-    gh release upload "$TAG" "$DMG" "$ALIAS_DMG" --clobber
+    gh release upload "$TAG" "$RELEASE_DMG" --clobber
   else
-    gh release create "$TAG" "$DMG" "$ALIAS_DMG" --title "$APP_NAME $VERSION" --generate-notes
+    gh release create "$TAG" "$RELEASE_DMG" --title "$APP_NAME $VERSION" --generate-notes
   fi
   ok "Release $TAG published"
 fi
@@ -137,9 +141,11 @@ fi
 # ── summary ──────────────────────────────────────────────────────────────────
 step "Done"
 echo ""
-echo "Distributable DMG:"
+echo "Distributable DMG (this is the one that gets published):"
+echo "  $PROJECT_DIR/$RELEASE_DMG"
+echo ""
+echo "Tauri's build output is kept locally but not published:"
 echo "  $PROJECT_DIR/$DMG"
-echo "  $PROJECT_DIR/$ALIAS_DMG  (stable name the website links to)"
 echo ""
 echo "Universal binary — runs native on Apple Silicon and Intel."
 [[ "$PUBLISH" == "1" ]] || echo "Re-run with PUBLISH=1 to attach it to a GitHub release."
