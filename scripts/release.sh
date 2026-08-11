@@ -44,9 +44,11 @@ command -v pnpm >/dev/null || die "pnpm not found"
 xcrun --find notarytool >/dev/null 2>&1 || die "notarytool not found — install Xcode Command Line Tools"
 
 # Auto-detect the Developer ID Application identity (the full quoted string).
+# `|| true` keeps a no-match from aborting the script under `set -eo pipefail`
+# before the check below can report it properly.
 IDENTITY="$(security find-identity -v -p codesigning \
   | grep -m1 'Developer ID Application' \
-  | sed -E 's/.*"(.*)".*/\1/')"
+  | sed -E 's/.*"(.*)".*/\1/' || true)"
 [[ -n "$IDENTITY" ]] || die "No 'Developer ID Application' identity in the keychain — import Certificates.p12 first (docs/RELEASING.md §1)"
 ok "Signing identity: $IDENTITY"
 
@@ -55,7 +57,7 @@ xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
   || die "Notary profile '$NOTARY_PROFILE' missing or unreachable — run notarytool store-credentials (docs/RELEASING.md §1)"
 ok "Notary profile: $NOTARY_PROFILE"
 
-VERSION="$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/')"
+VERSION="$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/' || true)"
 ok "Version: $VERSION"
 
 # ── rust targets ─────────────────────────────────────────────────────────────
@@ -104,15 +106,34 @@ step "Gatekeeper assessment"
 spctl --assess --type open --context context:primary-signature -v "$DMG"
 ok "Trusted as Notarized Developer ID"
 
+# ── the published asset ──────────────────────────────────────────────────────
+# The landing page links to releases/latest/download/Paintlet-macOS.dmg, which
+# GitHub resolves to the newest release at request time. That only works if the
+# newest release carries an asset with this exact filename, and Tauri's output
+# name changes every version — so the published asset always uses a fixed name.
+#
+# Exactly one DMG is published per release. Older versions stay individually
+# reachable because the tag is in the URL, not the filename:
+# releases/download/vX.Y.Z/Paintlet-macOS.dmg. A second, versioned copy would
+# only split the download counts across two assets.
+#
+# Copied after stapling on purpose: the ticket lives inside the DMG, so a copy
+# made earlier would be an unstapled duplicate.
+step "Naming the release asset"
+RELEASE_DMG="$(dirname "$DMG")/${APP_NAME}-macOS.dmg"
+cp "$DMG" "$RELEASE_DMG"
+xcrun stapler validate "$RELEASE_DMG" >/dev/null || die "The release asset is not stapled"
+ok "Release asset: $RELEASE_DMG"
+
 # ── optional: publish a GitHub release ───────────────────────────────────────
 if [[ "$PUBLISH" == "1" ]]; then
   step "Publishing GitHub release v$VERSION"
   command -v gh >/dev/null || die "gh CLI not found"
   TAG="v$VERSION"
   if gh release view "$TAG" >/dev/null 2>&1; then
-    gh release upload "$TAG" "$DMG" --clobber
+    gh release upload "$TAG" "$RELEASE_DMG" --clobber
   else
-    gh release create "$TAG" "$DMG" --title "$APP_NAME $VERSION" --generate-notes
+    gh release create "$TAG" "$RELEASE_DMG" --title "$APP_NAME $VERSION" --generate-notes
   fi
   ok "Release $TAG published"
 fi
@@ -120,7 +141,10 @@ fi
 # ── summary ──────────────────────────────────────────────────────────────────
 step "Done"
 echo ""
-echo "Distributable DMG:"
+echo "Distributable DMG (this is the one that gets published):"
+echo "  $PROJECT_DIR/$RELEASE_DMG"
+echo ""
+echo "Tauri's build output is kept locally but not published:"
 echo "  $PROJECT_DIR/$DMG"
 echo ""
 echo "Universal binary — runs native on Apple Silicon and Intel."

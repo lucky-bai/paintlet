@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sitemap for the Paintlet landing page.
+
+  Submit it once in Google Search Console (and Bing Webmaster Tools) as
+  https://lucky-bai.github.io/paintlet/sitemap.xml. Crawlers only read
+  robots.txt from the domain root, which belongs to the lucky-bai.github.io
+  repo, not this one — so a robots.txt here would be ignored, and the Search
+  Console submission is what actually registers this file.
+
+  Keep lastmod honest: update it when a page's content changes, not on every
+  deploy. A sitemap that claims everything changed yesterday is discounted.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://lucky-bai.github.io/paintlet/</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://lucky-bai.github.io/paintlet/privacy.html</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>

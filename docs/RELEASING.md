@@ -4,6 +4,8 @@ How to cut a distributable macOS build: a **universal** (Apple Silicon + Intel) 
 
 Most of this is automated by [`scripts/release.sh`](../scripts/release.sh). The one-time setup below has to happen first.
 
+Shipping to the **Mac App Store** is a separate track with different certificates, mandatory sandboxing, and no notarization step — see [`RELEASING-MAS.md`](RELEASING-MAS.md). The two can ship from the same commit and neither affects the other.
+
 ## 1. One-time setup
 
 > **Paintlet's signing identity.** Releases are signed and notarized under **Elaine Ye's (Yinan Ye) Developer ID Application** certificate, Apple Team ID **`R3557XH9FY`**, shared from her Apple Developer account — there is no separate Bai Li Developer ID. Signed releases therefore show **"Yinan Ye"** as the verified developer in Gatekeeper. The credentials themselves (her Apple ID and an app-specific password) live only in the local login keychain as the `paintlet-notary` profile and are **never committed to this repo**. The identity name and Team ID above are not secret — they are embedded in every signed build and visible via `codesign -dv`. If you set up your own account instead, substitute your own values throughout.
@@ -105,9 +107,15 @@ PUBLISH=1 scripts/release.sh
 
 ```bash
 gh release create vX.Y.Z \
-  "src-tauri/target/universal-apple-darwin/release/bundle/dmg/Paintlet_X.Y.Z_universal.dmg" \
+  "src-tauri/target/universal-apple-darwin/release/bundle/dmg/Paintlet-macOS.dmg" \
   --title "Paintlet X.Y.Z" --generate-notes
 ```
+
+**Publish exactly one DMG, always under the fixed name `Paintlet-macOS.dmg`.** The landing page's download button points at `releases/latest/download/Paintlet-macOS.dmg`, which GitHub resolves to the newest release at request time — but only if the newest release carries an asset with that exact filename. Tauri's own output name changes every version, so the script copies it to the fixed name and publishes that.
+
+Older versions are still individually reachable, because the tag lives in the URL rather than the filename: `releases/download/v0.1.2/Paintlet-macOS.dmg`. Publishing a second, versioned copy would add nothing and split each release's download count across two assets.
+
+`v0.1.1` carries both names for historical reasons — its versioned URL was public before the fixed name existed, so it stays. Every release after it has one asset.
 
 ## 3. What the script does
 
@@ -121,7 +129,8 @@ In order, exiting on the first failure:
 6. `notarytool submit --wait` on the DMG (usually 2–10 min).
 7. `stapler staple` + `stapler validate`.
 8. `spctl --assess` — confirms Gatekeeper trusts it.
-9. If `PUBLISH=1`, creates/updates the GitHub release and uploads the DMG.
+9. Copies the DMG to `Paintlet-macOS.dmg` and re-validates the staple. The copy happens after stapling because the ticket lives inside the DMG.
+10. If `PUBLISH=1`, creates/updates the GitHub release and uploads that one DMG.
 
 ## 4. Verifying a build
 

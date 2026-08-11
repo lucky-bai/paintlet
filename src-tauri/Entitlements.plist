@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the MAC APP STORE build only.
+
+  Referenced from tauri.appstore.conf.json, never from tauri.conf.json — the
+  Developer ID / DMG build deliberately ships UNSANDBOXED, because sandboxing it
+  would buy nothing and could only break file access. Do not move these into the
+  base config.
+
+  Paintlet needs a strikingly small set of entitlements: it has no network code,
+  no printing, no camera or microphone, no location, and no recents list. It
+  reads and writes exactly the files the user picks in a native panel, and that
+  is all.
+-->
+<plist version="1.0">
+<dict>
+    <!-- Mandatory for the App Store. Confines the app to its own container. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!--
+      Read/write access to files the user explicitly chooses in an open or save
+      panel. This is what makes src/lib.rs's read_image_file / write_image_file
+      keep working under the sandbox: the panel (Powerbox) is a trusted system
+      process, and picking a file hands this process a sandbox extension for
+      that exact path. std::fs then inherits the grant.
+
+      Note what is NOT here: files.downloads, files.all, or any absolute-path
+      access. If a recents menu is ever added, reopening a file across launches
+      will need com.apple.security.files.bookmarks.app-scope plus real
+      security-scoped bookmarks — a fresh path string alone will be denied.
+    -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!--
+      Team-scoped identity. The prefix MUST be the Apple Team ID that owns the
+      Mac App Store provisioning profile, and the suffix MUST equal the
+      `identifier` in tauri.conf.json. Team R3557XH9FY is Yinan Ye's account —
+      the same one docs/RELEASING.md signs Developer ID builds under.
+
+      If you ship under a different Apple account, change the team ID in BOTH
+      keys below. scripts/release-mas.sh cross-checks these against the signing
+      identity and refuses to build on a mismatch, so a stale value fails loudly
+      here rather than as an opaque rejection from App Store Connect.
+    -->
+    <key>com.apple.application-identifier</key>
+    <string>R3557XH9FY.io.efficientnlp.paintlet</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>R3557XH9FY</string>
+</dict>
+</plist>

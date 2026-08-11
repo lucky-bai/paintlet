@@ -305,7 +305,38 @@ code {
 .download .fineprint {
   font-size: 13px;
   color: var(--text-2);
-  margin: 16px 0 0;
+  /* `auto` on the sides so it stays centered like the paragraph above it —
+     .download p's `margin: 0 auto 28px` would otherwise be overridden here. */
+  margin: 16px auto 0;
+}
+
+/* ---------- Prose pages (privacy) ---------- */
+/* Narrower and left-aligned: the landing page's centered, oversized headings
+   are wrong for reading paragraphs. */
+.prose {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 72px 24px 24px;
+}
+.prose h1 {
+  font-size: clamp(30px, 5vw, 44px);
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.prose h2 {
+  font-size: 21px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  margin: 40px 0 10px;
+}
+.prose p {
+  margin: 0 0 16px;
+}
+.prose-meta {
+  color: var(--text-2);
+  font-size: 14px;
+  margin: 0 0 32px;
 }
 
 /* Footer */

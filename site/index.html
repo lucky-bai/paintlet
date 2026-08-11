@@ -3,24 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Paintlet — MS Paint-style editor for macOS</title>
+    <!-- "MS Paint for Mac" is the phrase people actually search for. -->
+    <title>Paintlet — MS Paint for Mac, free and open source</title>
     <meta
       name="description"
-      content="A small, light MS Paint-style raster editor for macOS. Windows 11 Paint's layout and interactions in a native Mac app."
+      content="A free, open-source MS Paint for Mac. Pencil, brush, shapes, flood fill, text, and selections in a small native app — Apple Silicon and Intel."
     />
+    <link rel="canonical" href="https://lucky-bai.github.io/paintlet/" />
     <link rel="icon" type="image/png" href="assets/logo.png" />
 
     <!-- Open Graph / social preview (absolute URLs so link unfurls resolve) -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Paintlet" />
     <meta property="og:url" content="https://lucky-bai.github.io/paintlet/" />
-    <meta property="og:title" content="Paintlet — MS Paint-style editor for macOS" />
+    <meta property="og:title" content="Paintlet — MS Paint for Mac, free and open source" />
     <meta
       property="og:description"
       content="A small, light MS Paint-style raster editor for macOS."
     />
     <meta property="og:image" content="https://lucky-bai.github.io/paintlet/assets/canvas.png" />
+    <!-- Dimensions let unfurlers reserve the right space before the image loads. -->
+    <meta property="og:image:width" content="2600" />
+    <meta property="og:image:height" content="1892" />
+    <meta property="og:image:alt" content="Paintlet's window: ribbon, color palette, canvas, and status bar" />
+
+    <!-- Without an explicit card type, X falls back to a small thumbnail. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Paintlet — MS Paint for Mac, free and open source" />
+    <meta name="twitter:description" content="A small, light MS Paint-style raster editor for macOS." />
+    <meta name="twitter:image" content="https://lucky-bai.github.io/paintlet/assets/canvas.png" />
 
     <link rel="stylesheet" href="styles.css" />
+
+    <!-- Structured data: lets search engines show this as an app (platform,
+         price, category) rather than as an anonymous web page. Deliberately no
+         softwareVersion — it would go stale on every release and nothing here
+         reads it back. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Paintlet",
+        "description": "A free, open-source MS Paint-style raster image editor for macOS.",
+        "url": "https://lucky-bai.github.io/paintlet/",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "macOS 10.15 or later",
+        "downloadUrl": "https://github.com/lucky-bai/paintlet/releases/latest/download/Paintlet-macOS.dmg",
+        "installUrl": "https://github.com/lucky-bai/paintlet/releases/latest",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "license": "https://github.com/lucky-bai/paintlet/blob/main/LICENSE",
+        "author": { "@type": "Person", "name": "Bai Li" },
+        "screenshot": [
+          "https://lucky-bai.github.io/paintlet/assets/canvas.png",
+          "https://lucky-bai.github.io/paintlet/assets/selection.png",
+          "https://lucky-bai.github.io/paintlet/assets/color-picker.png"
+        ]
+      }
+    </script>
   </head>
 
   <body>
@@ -34,7 +74,7 @@
         <nav class="nav-links">
           <a href="#features">Features</a>
           <a href="#screenshots">Screenshots</a>
-          <a class="btn btn-small" href="https://github.com/lucky-bai/paintlet/releases/latest">
+          <a class="btn btn-small" href="https://github.com/lucky-bai/paintlet/releases/latest/download/Paintlet-macOS.dmg">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
             Download
           </a>
@@ -45,14 +85,14 @@
     <main id="top">
       <!-- Hero -->
       <section class="hero">
-        <h1>MS Paint-style editor for macOS</h1>
+        <h1>A free MS Paint for Mac</h1>
         <p class="lede">
           A small, light raster editor that brings Windows 11 Paint's layout and interactions to a
           native Mac app.
         </p>
 
         <div class="cta">
-          <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest">
+          <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest/download/Paintlet-macOS.dmg">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
             Download for macOS
           </a>
@@ -141,10 +181,15 @@
         <img src="assets/logo.png" alt="" width="72" height="72" />
         <h2>Get Paintlet</h2>
         <p>Signed and notarized by Apple — a universal build for macOS 10.15 and later.</p>
-        <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest">
+        <a class="btn btn-primary" href="https://github.com/lucky-bai/paintlet/releases/latest/download/Paintlet-macOS.dmg">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
           Download for macOS
         </a>
+        <p class="fineprint">
+          The button always serves the newest release.
+          <a href="https://github.com/lucky-bai/paintlet/releases">Release notes and older versions</a>
+          live on GitHub.
+        </p>
       </section>
     </main>
 
@@ -156,6 +201,8 @@
         <a href="https://github.com/lucky-bai/paintlet">GitHub</a>
         <span>·</span>
         <a href="https://github.com/lucky-bai/paintlet/blob/main/LICENSE">MIT License</a>
+        <span>·</span>
+        <a href="privacy.html">Privacy</a>
         <span>·</span>
         <span>© 2026 Bai Li</span>
       </p>
