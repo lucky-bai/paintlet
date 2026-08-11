@@ -15,7 +15,7 @@
 # Both can ship from the same commit; they are not mutually exclusive. Nothing
 # here touches release.sh or the DMG output.
 #
-#   scripts/release-mas.sh            # build, sign, package, validate
+#   scripts/release-mas.sh            # build, sign, package (validate if altool)
 #   UPLOAD=1 scripts/release-mas.sh   # …and upload to App Store Connect
 #
 # Run from anywhere; paths are resolved from the script's own location.
@@ -221,44 +221,47 @@ productbuild --sign "$INSTALLER_IDENTITY" --component "$APP" /Applications "$PKG
 pkgutil --check-signature "$PKG" >/dev/null || die "The .pkg signature did not verify"
 ok "Signed package: $PKG"
 
-# ── validate + upload ────────────────────────────────────────────────────────
-# Both tools take the same two credentials but spell everything else
-# differently: altool uses --apiKey/--apiIssuer with a mode flag, while
-# iTMSTransporter uses -m verify/upload with -apiKey/-apiIssuer.
+# ── validate ─────────────────────────────────────────────────────────────────
+# The two tools differ in more than flag spelling here, so this is not one
+# command with two names. altool can validate a bare .pkg without sending it
+# (--validate-app). iTMSTransporter cannot: its `-m verify` accepts only
+# `-f <dir-or-file.itmsp>`, never -assetFile, so there is no standalone
+# pre-flight for a plain .pkg. What it does instead is run the same validation
+# as the first stage of `-m upload`, failing without delivering anything if the
+# package is bad — the identical checks, but only on a run that means to upload.
 if [[ -z "${APPLE_API_KEY_ID:-}" || -z "${APPLE_API_ISSUER:-}" ]]; then
   warn "Skipping validation: APPLE_API_KEY_ID / APPLE_API_ISSUER not set"
   warn "You can still upload $PKG by hand by dragging it into Transporter.app."
 elif [[ -z "$UPLOADER" ]]; then
   warn "Skipping validation: no upload tool installed"
   warn "Install Transporter from the Mac App Store, or drag $PKG into it by hand."
-else
-  step "Validating with App Store Connect ($UPLOADER)"
+elif [[ "$UPLOADER" == "altool" ]]; then
+  step "Validating with App Store Connect"
+  xcrun altool --validate-app --type macos --file "$PKG" \
+    --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
+  ok "Validated"
+elif [[ "$UPLOAD" != "1" ]]; then
+  warn "iTMSTransporter cannot validate a .pkg on its own; only altool can."
+  warn "Re-run with UPLOAD=1 — it validates before delivering, so a bad package still never reaches Apple."
+fi
+
+# ── upload ───────────────────────────────────────────────────────────────────
+# No credential guard needed: the preflight above refuses an UPLOAD=1 run
+# unless both credentials and an uploader are present.
+if [[ "$UPLOAD" == "1" ]]; then
+  step "Uploading to App Store Connect ($UPLOADER)"
   case "$UPLOADER" in
     altool)
-      xcrun altool --validate-app --type macos --file "$PKG" \
+      xcrun altool --upload-app --type macos --file "$PKG" \
         --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
       ;;
     transporter)
-      "$TRANSPORTER" -m verify -assetFile "$PKG" \
-        -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER"
+      # -vp text prints verify-stage progress, so the wait is not silent.
+      "$TRANSPORTER" -m upload -assetFile "$PKG" \
+        -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER" -vp text
       ;;
   esac
-  ok "Validated"
-
-  if [[ "$UPLOAD" == "1" ]]; then
-    step "Uploading to App Store Connect ($UPLOADER)"
-    case "$UPLOADER" in
-      altool)
-        xcrun altool --upload-app --type macos --file "$PKG" \
-          --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
-        ;;
-      transporter)
-        "$TRANSPORTER" -m upload -assetFile "$PKG" \
-          -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER"
-        ;;
-    esac
-    ok "Uploaded — the build appears in App Store Connect after processing (10–30 min)"
-  fi
+  ok "Uploaded — the build appears in App Store Connect after processing (10–30 min)"
 fi
 
 # ── summary ──────────────────────────────────────────────────────────────────

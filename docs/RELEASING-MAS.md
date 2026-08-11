@@ -96,7 +96,9 @@ Install **[Transporter](https://apps.apple.com/us/app/transporter/id1450874784)*
 
 `release-mas.sh` detects whichever is present, prefers `altool`, and refuses to start an `UPLOAD=1` run if neither exists. Failing that check costs a second; discovering it after a full universal build costs several minutes.
 
-Transporter can also be used by hand: drag the `.pkg` onto its window. The script path is preferred because it validates first and keeps the credentials out of a GUI login.
+Transporter can also be used by hand: drag the `.pkg` onto its window. The script path is preferred because it keeps the credentials out of a GUI login.
+
+One asymmetry to know about: **only `altool` can validate a `.pkg` without uploading it.** `iTMSTransporter -m verify` takes `-f` with a legacy `.itmsp` package directory and will not accept `-assetFile`, so there is no standalone pre-flight for a plain `.pkg`. It runs the same validation as the first stage of `-m upload` instead, and fails without delivering anything if the package is bad — so nothing broken reaches Apple either way, but on a Transporter-only machine a validation run and an upload run are the same run.
 
 ### Create the app record
 
@@ -107,7 +109,7 @@ In [App Store Connect](https://appstoreconnect.apple.com) → **Apps** → **+**
 Bump the build number in [`src-tauri/tauri.appstore.conf.json`](../src-tauri/tauri.appstore.conf.json) → `bundle.macOS.bundleVersion`. This is separate from the SemVer in `tauri.conf.json` by design: the App Store permanently refuses any `CFBundleVersion` it has already seen for this bundle ID, so **every upload attempt needs a fresh number**, including re-uploads after a rejection. The marketing version only moves for real releases.
 
 ```bash
-scripts/release-mas.sh            # build, sign, package, validate
+scripts/release-mas.sh            # build, sign, package (validate too, if altool)
 UPLOAD=1 scripts/release-mas.sh   # …and upload to App Store Connect
 ```
 
@@ -131,7 +133,7 @@ In order, exiting on the first failure, and doing every cheap check before the s
 6. Builds `--bundles app --target universal-apple-darwin` with `tauri.appstore.conf.json` merged in, signing with the distribution identity and the sandbox entitlements.
 7. Asserts the four things the store rejects silently: the **app-sandbox entitlement is actually in the signature**, `embedded.provisionprofile` **is in the bundle**, `LSApplicationCategoryType` **is set**, and `CFBundleVersion` **matches** what was configured.
 8. `productbuild --sign` to produce the `.pkg`, then `pkgutil --check-signature` to verify it.
-9. Validates the package with whichever upload tool is installed, and with `UPLOAD=1`, uploads it. `altool --validate-app` / `--upload-app`, or `iTMSTransporter -m verify` / `-m upload` — the two take the same credentials but spell every other flag differently.
+9. Validates the package if `altool` is installed, and with `UPLOAD=1`, uploads it — `altool --validate-app` / `--upload-app`, or `iTMSTransporter -m upload -assetFile`. The two take the same credentials but spell every other flag differently, and differ in capability as described in §1.
 
 ## 4. The listing
 
