@@ -65,7 +65,7 @@ It is gitignored on purpose. The profile holds no private key, but it is tied to
 
 ### App Store Connect API key
 
-Create an API key under [App Store Connect → Integrations → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api) with the **App Manager** role. Save the downloaded `AuthKey_<KEYID>.p8` to `~/.appstoreconnect/private_keys/` — `altool` finds it by convention, so the path matters. Then export the two non-secret identifiers, which the release script reads:
+Create an API key under [App Store Connect → Integrations → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api) with the **App Manager** role (Admin also works). Save the downloaded `AuthKey_<KEYID>.p8` to `~/.appstoreconnect/private_keys/` — the upload tools find it by convention, so the path matters. It downloads exactly once. Then export the two non-secret identifiers, which the release script reads:
 
 ```bash
 export APPLE_API_KEY_ID="XXXXXXXXXX"
@@ -73,6 +73,30 @@ export APPLE_API_ISSUER="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
 An API key is preferred over an Apple ID plus app-specific password: it is scoped, revocable, and works unattended in CI. It also decouples uploads from the account holder — once the key exists, `release-mas.sh` uploads without anyone signing in or clearing a two-factor prompt. Only listing edits and review submission still need the web session.
+
+To confirm the key authenticates before relying on it, ask the API who you are:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer <jwt>" \
+  'https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=io.efficientnlp.paintlet'
+```
+
+The JWT has to be an ES256 assertion signed with the `.p8`, so this is easier from a script than by hand — but a `200` proves the key ID, issuer ID and key file all agree, which is worth knowing before a slow build.
+
+### An upload tool
+
+**Neither uploader ships with the Command Line Tools.** `altool` comes only with full Xcode; `iTMSTransporter` comes with Xcode or with Apple's standalone **Transporter** app. This surprises people because `notarytool` *is* in the CLT — so a Mac that happily notarizes a Developer ID DMG can still be unable to upload to the App Store.
+
+Install **[Transporter](https://apps.apple.com/us/app/transporter/id1450874784)** from the Mac App Store. It is a few hundred MB against Xcode's 10+ GB, and it bundles `iTMSTransporter` at:
+
+```
+/Applications/Transporter.app/Contents/itms/bin/iTMSTransporter
+```
+
+`release-mas.sh` detects whichever is present, prefers `altool`, and refuses to start an `UPLOAD=1` run if neither exists. Failing that check costs a second; discovering it after a full universal build costs several minutes.
+
+Transporter can also be used by hand: drag the `.pkg` onto its window. The script path is preferred because it validates first and keeps the credentials out of a GUI login.
 
 ### Create the app record
 
@@ -107,7 +131,7 @@ In order, exiting on the first failure, and doing every cheap check before the s
 6. Builds `--bundles app --target universal-apple-darwin` with `tauri.appstore.conf.json` merged in, signing with the distribution identity and the sandbox entitlements.
 7. Asserts the four things the store rejects silently: the **app-sandbox entitlement is actually in the signature**, `embedded.provisionprofile` **is in the bundle**, `LSApplicationCategoryType` **is set**, and `CFBundleVersion` **matches** what was configured.
 8. `productbuild --sign` to produce the `.pkg`, then `pkgutil --check-signature` to verify it.
-9. `altool --validate-app`, and with `UPLOAD=1`, `altool --upload-app`.
+9. Validates the package with whichever upload tool is installed, and with `UPLOAD=1`, uploads it. `altool --validate-app` / `--upload-app`, or `iTMSTransporter -m verify` / `-m upload` — the two take the same credentials but spell every other flag differently.
 
 ## 4. The listing
 
@@ -127,7 +151,7 @@ So:
 - **Name:** `Paintlet` — nothing else. Not "Paintlet - MS Paint for Mac".
 - **Subtitle:** `Simple raster image editor` *(30 char limit)*
 - **Keywords:** `paint, draw, drawing, bitmap, raster, pixel, sketch, image editor, canvas` *(100 char limit)*. Leave the trademark out here too. A keyword is not referential use — it is search interception — so it carries the risk of a description mention without the benefit.
-- **Description:** the MS Paint comparison belongs here, phrased as a comparison rather than a claim of identity or endorsement. Something like: *"Paintlet is a small raster image editor for macOS, similar in spirit to MS Paint and modelled on the layout of Windows 11's Paint."* Then the tool list — pencil, brush, shapes, flood fill, text, selections, resize, crop, flip, rotate — and what it is not: no subscription, no account, no network access, no telemetry.
+- **Description:** the MS Paint comparison belongs here, phrased as a comparison rather than a claim of identity or endorsement. Something like: *"Paintlet is a small raster image editor for macOS, similar in spirit to MS Paint and modelled on the layout of Windows 11's Paint."* Then the tool list — pencil, brush, shapes, flood fill, text, selections, resize, crop, flip, rotate — and what it is not: no subscription, no account, no telemetry, and makes no network requests. Say "makes no network requests", not "no network access" — see §5 for why the distinction matters.
 - **Disclaimer:** close the description with an explicit non-affiliation line — *"Not affiliated with or endorsed by Microsoft. Microsoft Paint and Windows are trademarks of Microsoft Corporation."*
 
 Also confirm every bundled icon and cursor is original artwork. Reproducing MS Paint's 20-color palette is fine — those are just RGB values — but traced or copied icon art is both a rejection under 4.1(c) and a real legal exposure.
@@ -149,7 +173,15 @@ Paintlet is a WebView-based app, so expect possible pushback under guideline 4.2
 
 ## 5. Sandbox notes
 
-Paintlet needs a remarkably small entitlement set — no network, no printing, no camera, no location, no recents — because of how it already does file I/O. `read_image_file` and `write_image_file` in `src-tauri/src/lib.rs` call `std::fs` on paths that came back from a native panel, and `save_panel.rs` drives `NSSavePanel` directly. The panel is the sandbox's Powerbox: choosing a file grants this process an extension for that exact path, and `std::fs` inherits it. So `com.apple.security.files.user-selected.read-write` is the whole story.
+Paintlet needs a small entitlement set — no printing, no camera, no location, no recents — because of how it already does file I/O. `read_image_file` and `write_image_file` in `src-tauri/src/lib.rs` call `std::fs` on paths that came back from a native panel, and `save_panel.rs` drives `NSSavePanel` directly. The panel is the sandbox's Powerbox: choosing a file grants this process an extension for that exact path, and `std::fs` inherits it. So for file access, `com.apple.security.files.user-selected.read-write` is the whole story.
+
+### Why a network entitlement is needed anyway
+
+`com.apple.security.network.client` is required for the window to render at all, even though Paintlet makes no network requests. WKWebView runs its networking in a separate XPC service, and under App Sandbox that service cannot initialise without the entitlement — even when every asset is local and served over Tauri's custom scheme. The web content process dies silently and the window opens completely blank, with nothing in the system log to explain it.
+
+This was verified in both directions on an already-created container, so it is not a first-launch artefact: two entitlements renders nothing, adding the third and changing nothing else renders correctly.
+
+The entitlement *permits* outbound connections; it does not create any. There is still no network code in the app. But it means user-facing copy must be worded carefully: **"makes no network requests"** is accurate and defensible, **"no network access"** contradicts an entitlement a curious reviewer can read in one command. Keep the App Store description and `site/privacy.html` on the right side of that line.
 
 Two things to watch:
 
@@ -166,8 +198,10 @@ Two things to watch:
 - **`ITMS-90186: Invalid Pre-Release Train`** or a duplicate-version complaint — the `CFBundleVersion` was already used. Bump `bundle.macOS.bundleVersion` and rebuild.
 - **`ITMS-90238: Invalid Signature`** — usually a team mismatch or an unsigned nested binary. The script's team cross-check covers the first; for the second, re-run `codesign --verify --deep --strict`.
 - **"failed to bundle project: failed to run xattr"** — a `pyenv`/`conda` shim is shadowing `/usr/bin/xattr`. The script prepends `/usr/bin` to `PATH`; a bare `pnpm tauri build` needs the same prefix.
-- **`altool` cannot find the API key** — it searches `./private_keys`, `~/private_keys`, `~/.private_keys`, and `~/.appstoreconnect/private_keys` only. A path elsewhere will not be picked up.
-- **An Apple ID on multiple teams** confuses `altool`. Set `bundle.macOS.providerShortName` to disambiguate.
+- **`xcrun: error: unable to find utility "altool"`** — you have the Command Line Tools but not Xcode, and `altool` ships only with Xcode. Install Transporter (§1). The `.pkg` is already built and valid at this point; only the upload leg failed.
+- **The upload tool cannot find the API key** — it searches `./private_keys`, `~/private_keys`, `~/.private_keys`, and `~/.appstoreconnect/private_keys` only. A path elsewhere will not be picked up.
+- **An Apple ID on multiple teams** confuses the uploaders. Set `bundle.macOS.providerShortName` to disambiguate.
+- **A window that opens completely blank** — the sandboxed build is missing `com.apple.security.network.client`. See §5.
 
 ## 7. CI (optional, later)
 

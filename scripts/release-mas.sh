@@ -126,15 +126,31 @@ BUILD_NUMBER="$(sed -nE 's/.*"bundleVersion": *"([^"]+)".*/\1/p' "$APPSTORE_CONF
 [[ -n "$BUILD_NUMBER" ]] || die "No bundleVersion in $APPSTORE_CONF"
 ok "Version $VERSION (build $BUILD_NUMBER)"
 
+# ── the upload tool ──────────────────────────────────────────────────────────
+# Neither uploader ships with the Command Line Tools. altool comes with full
+# Xcode; iTMSTransporter comes with Xcode or with Apple's much smaller
+# Transporter.app. A machine that can notarize a DMG can therefore still be
+# unable to upload to the App Store, because notarytool IS in the CLT — so this
+# has to be detected rather than assumed.
+TRANSPORTER="/Applications/Transporter.app/Contents/itms/bin/iTMSTransporter"
+UPLOADER=""
+if xcrun --find altool >/dev/null 2>&1; then
+  UPLOADER="altool"
+elif [[ -x "$TRANSPORTER" ]]; then
+  UPLOADER="transporter"
+fi
+
 # ── upload credentials, checked BEFORE the slow build ────────────────────────
 if [[ "$UPLOAD" == "1" ]]; then
   step "Checking App Store Connect credentials"
   [[ -n "${APPLE_API_KEY_ID:-}" ]] || die "UPLOAD=1 needs APPLE_API_KEY_ID exported"
   [[ -n "${APPLE_API_ISSUER:-}" ]] || die "UPLOAD=1 needs APPLE_API_ISSUER exported"
-  # altool finds the key by convention, not by path; check the canonical location.
+  # Both uploaders find the key by convention, not by path — hence the fixed
+  # location rather than a flag.
   KEY_FILE="$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
-  [[ -f "$KEY_FILE" ]] || warn "No key at $KEY_FILE — altool also searches ./private_keys and ~/private_keys"
-  ok "API key $APPLE_API_KEY_ID"
+  [[ -f "$KEY_FILE" ]] || warn "No key at $KEY_FILE — the uploaders also search ./private_keys and ~/private_keys"
+  [[ -n "$UPLOADER" ]] || die "UPLOAD=1 but no upload tool found. Install Apple's Transporter from the Mac App Store (small), or full Xcode (large). The Command Line Tools alone ship neither altool nor iTMSTransporter (docs/RELEASING-MAS.md §1)."
+  ok "API key $APPLE_API_KEY_ID, uploader: $UPLOADER"
 fi
 
 # ── rust targets ─────────────────────────────────────────────────────────────
@@ -206,21 +222,43 @@ pkgutil --check-signature "$PKG" >/dev/null || die "The .pkg signature did not v
 ok "Signed package: $PKG"
 
 # ── validate + upload ────────────────────────────────────────────────────────
-step "Validating with App Store Connect"
-if [[ -n "${APPLE_API_KEY_ID:-}" && -n "${APPLE_API_ISSUER:-}" ]]; then
-  xcrun altool --validate-app --type macos --file "$PKG" \
-    --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
+# Both tools take the same two credentials but spell everything else
+# differently: altool uses --apiKey/--apiIssuer with a mode flag, while
+# iTMSTransporter uses -m verify/upload with -apiKey/-apiIssuer.
+if [[ -z "${APPLE_API_KEY_ID:-}" || -z "${APPLE_API_ISSUER:-}" ]]; then
+  warn "Skipping validation: APPLE_API_KEY_ID / APPLE_API_ISSUER not set"
+  warn "You can still upload $PKG by hand by dragging it into Transporter.app."
+elif [[ -z "$UPLOADER" ]]; then
+  warn "Skipping validation: no upload tool installed"
+  warn "Install Transporter from the Mac App Store, or drag $PKG into it by hand."
+else
+  step "Validating with App Store Connect ($UPLOADER)"
+  case "$UPLOADER" in
+    altool)
+      xcrun altool --validate-app --type macos --file "$PKG" \
+        --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
+      ;;
+    transporter)
+      "$TRANSPORTER" -m verify -assetFile "$PKG" \
+        -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER"
+      ;;
+  esac
   ok "Validated"
 
   if [[ "$UPLOAD" == "1" ]]; then
-    step "Uploading to App Store Connect"
-    xcrun altool --upload-app --type macos --file "$PKG" \
-      --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
+    step "Uploading to App Store Connect ($UPLOADER)"
+    case "$UPLOADER" in
+      altool)
+        xcrun altool --upload-app --type macos --file "$PKG" \
+          --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
+        ;;
+      transporter)
+        "$TRANSPORTER" -m upload -assetFile "$PKG" \
+          -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER"
+        ;;
+    esac
     ok "Uploaded — the build appears in App Store Connect after processing (10–30 min)"
   fi
-else
-  warn "Skipping validation: APPLE_API_KEY_ID / APPLE_API_ISSUER not set"
-  warn "You can still upload $PKG by hand with Apple's Transporter app."
 fi
 
 # ── summary ──────────────────────────────────────────────────────────────────

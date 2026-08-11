@@ -8,10 +8,9 @@
   would buy nothing and could only break file access. Do not move these into the
   base config.
 
-  Paintlet needs a strikingly small set of entitlements: it has no network code,
-  no printing, no camera or microphone, no location, and no recents list. It
-  reads and writes exactly the files the user picks in a native panel, and that
-  is all.
+  Paintlet needs a small set of entitlements: no printing, no camera or
+  microphone, no location, and no recents list. It reads and writes exactly the
+  files the user picks in a native panel, and that is all.
 -->
 <plist version="1.0">
 <dict>
@@ -32,6 +31,27 @@
       security-scoped bookmarks — a fresh path string alone will be denied.
     -->
     <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!--
+      Required for the window to render at all, despite Paintlet making no
+      network requests of any kind. WKWebView runs its networking in a separate
+      XPC service, and under App Sandbox that service cannot initialise without
+      this entitlement — even when every asset is local and served over Tauri's
+      custom scheme. The web content process dies silently and the window opens
+      completely blank.
+
+      Verified, not assumed: a sandboxed build with only the two entitlements
+      above renders nothing; adding this one and changing nothing else renders
+      correctly. Confirmed in both directions on an existing container, so it is
+      not a first-launch artefact.
+
+      This PERMITS outbound connections; it does not create any. The app still
+      has no network code. Word user-facing claims as "makes no network
+      requests" rather than "has no network access", so the copy matches the
+      entitlement a curious reviewer will read.
+    -->
+    <key>com.apple.security.network.client</key>
     <true/>
 
     <!--
