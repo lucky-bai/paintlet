@@ -97,6 +97,18 @@ jobs:
             -T /usr/bin/codesign -T /usr/bin/security
           rm -f "$RUNNER_TEMP/cert.p12"
 
+          # The .p12 holds the leaf only, and `find-identity -v` lists an
+          # identity only if it can build a chain to a trusted root — so without
+          # the issuing intermediate the certificate imports fine and then
+          # reports "0 valid identities", which release.sh reads as no signing
+          # identity at all. Verified locally: importing this .p12 into an
+          # isolated keychain yields exactly that. The runner may happen to have
+          # the intermediate already, but fetching it is a second and removes
+          # the question. Same fix as docs/RELEASING.md §1.
+          curl -fsSL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
+            -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN" >/dev/null
+
           # Without this, the first codesign call blocks on a GUI "allow access
           # to the key?" prompt that no one is there to answer, and the job hangs
           # until it times out rather than failing.
