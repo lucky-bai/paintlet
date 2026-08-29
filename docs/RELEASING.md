@@ -9,7 +9,7 @@ There are two ways to cut one:
 
 The one-time setup below is a prerequisite for the local path, and its certificate and notary credentials are the same material the workflow needs as secrets.
 
-Shipping to the **Mac App Store** is a separate track with different certificates, mandatory sandboxing, and no notarization step — see [`RELEASING-MAS.md`](RELEASING-MAS.md). The two can ship from the same commit and neither affects the other.
+Shipping to the **Mac App Store** is a separate track with different certificates, mandatory sandboxing, and no notarization step — see [`RELEASING-MAS.md`](RELEASING-MAS.md). The same workflow drives both, from the same commit, and either can be run without the other.
 
 ## 1. One-time setup
 
@@ -168,32 +168,54 @@ Then mount it, drag Paintlet to Applications, and launch — there should be no 
 
 ## 6. Releasing from GitHub Actions
 
-[`.github/workflows/release.yml`](../.github/workflows/release.yml) does everything §2 describes, on a macOS runner, from a button in the **Actions** tab. It runs `scripts/bump-version.sh` and `scripts/release.sh` unchanged — the workflow's only job is to hand them credentials, so the local and CI paths cannot drift apart.
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) ships **both** distribution tracks from one button in the **Actions** tab: the notarized DMG described above, and the sandboxed App Store package described in [`RELEASING-MAS.md`](RELEASING-MAS.md). It runs `scripts/bump-version.sh`, `scripts/release.sh` and `scripts/release-mas.sh` unchanged — the workflow's only job is to hand them credentials, so the local and CI paths cannot drift apart.
 
 ### Running it
 
-**Actions → Release → Run workflow**, with two inputs:
+**Actions → Release → Run workflow**, with three inputs:
 
-- **`mode`** — `dry-run` (the default) builds, signs, notarizes, and attaches the DMG to the run without publishing or committing anything; the version bump is applied to the working tree and thrown away with the runner. `publish` does the whole thing.
+- **`mode`** — `dry-run` (the default) builds, signs, notarizes, packages and validates without publishing, uploading or committing anything; the version bump is applied to the working tree and thrown away with the runner, and both artifacts are attached to the run. `publish` does the whole thing.
+- **`tracks`** — `both` by default. `github-only` skips the store; `app-store-only` skips the DMG and, importantly, **reuses the committed version instead of bumping**, which is what makes it the right way to retry a failed upload.
 - **`version`** — leave blank to bump the patch component; set it explicitly for a minor or major release.
 
-Both modes run from any branch. A publish pushes its `Release vX.Y.Z` commit to whichever branch it ran from, and tags that exact commit, so the tag always names what is inside the DMG. A build failure leaves the branch bumped with nothing released, which costs a version number and nothing else — the next run bumps again from there.
+A publish takes roughly an hour end to end: two universal builds, notarization, and then up to half an hour waiting on Apple to process the uploaded build before it can be submitted.
+
+### Which branch to run from
+
+**Publish from `main`.** A publish pushes its `Release vX.Y.Z` commit to whichever branch it ran from and tags that exact commit, so the tag always names what is inside the DMG.
+
+Run it from a feature branch and that stops being tidy: the tag points at the branch commit, and a later squash-merge creates a *different* commit on main, so the released commit is never an ancestor of main and survives only because the tag holds it. The DMG also goes public before the code is on main. Nothing breaks, but `git describe` stops telling the truth.
+
+`dry-run` is safe from any branch — it commits and publishes nothing.
+
+A build failure leaves the branch bumped with nothing released, which costs a version number and nothing else: the next run bumps again from there.
+
+### Who commits
+
+The bump commit is authored and committed by `github-actions[bot]`, pushed with the built-in `GITHUB_TOKEN`, and unsigned. Commits pushed with that token deliberately do not trigger other workflows, so the `Release vX.Y.Z` commit gets no CI run of its own — harmless, since the same job runs the typecheck, build and unit tests immediately beforehand.
 
 ### Required secrets
 
 | Secret | What it is |
 | --- | --- |
 | `APPLE_CERTIFICATE_P12_BASE64` | The Developer ID Application `.p12`, base64-encoded: `base64 -i Certificates.p12 \| pbcopy` |
-| `APPLE_CERTIFICATE_PASSWORD` | The `.p12` export password |
+| `APPLE_CERTIFICATE_PASSWORD` | The export password, shared by all three `.p12` files |
+| `APPLE_DISTRIBUTION_P12_BASE64` | The Apple Distribution `.p12` — signs the App Store `.app` |
+| `APPLE_INSTALLER_P12_BASE64` | The Mac Installer Distribution `.p12` — signs the `.pkg` |
+| `MAS_PROVISIONING_PROFILE_BASE64` | The Mac App Store provisioning profile, base64-encoded |
 | `NOTARY_API_KEY_BASE64` | The App Store Connect `AuthKey_<KEYID>.p8`, base64-encoded |
 | `NOTARY_API_KEY_ID` | The key ID (the `<KEYID>` in that filename) |
 | `NOTARY_API_ISSUER` | The issuer UUID from App Store Connect |
 
-The notary key is the same kind of App Store Connect API key described in [`RELEASING-MAS.md`](RELEASING-MAS.md) §1, and the same key can serve both — notarization needs no particular role beyond access to the team. There is no `KEYCHAIN_PASSWORD` secret: the workflow generates a random one per run for a throwaway keychain that it deletes on the way out, so nothing about it needs to outlive the job.
+One App Store Connect API key covers everything: notarization needs no particular role beyond access to the team, and the same key creates versions and submits for review. It is staged into `private_keys/` inside the workspace, which is where `altool` and `scripts/asc.mjs` both look by convention, and passed to `notarytool` by path.
+
+There is no `KEYCHAIN_PASSWORD` secret: the workflow generates a random one per run for a throwaway keychain that it deletes on the way out, so nothing about it needs to outlive the job.
+
+The provisioning profile is the only credential with an expiry date — **2027-08-11**. The workflow checks it before building and fails immediately if it has lapsed, warning a month ahead.
 
 ### What it does not do
 
-The Mac App Store. That track needs two further certificates plus a provisioning profile that expires yearly, and it ends at a review submission that has to be driven through a browser anyway — so automating the upload would move the manual step without removing it. After a GitHub release, ship the same commit to the store by hand: bump `bundle.macOS.bundleVersion` in `src-tauri/tauri.appstore.conf.json`, then `UPLOAD=1 scripts/release-mas.sh`. See [`RELEASING-MAS.md`](RELEASING-MAS.md).
+Edit the store listing. Screenshots, description, keywords and pricing carry forward from the previous version untouched; the automation writes only the "What's New" text. Apple also reviews every version, updates included, and there is no way around that — see [`RELEASING-MAS.md`](RELEASING-MAS.md) §7.
 
 ### A note on whose credentials these are
 

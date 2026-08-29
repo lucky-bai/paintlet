@@ -106,11 +106,15 @@ In [App Store Connect](https://appstoreconnect.apple.com) → **Apps** → **+**
 
 ## 2. Cutting a build
 
-Bump the build number in [`src-tauri/tauri.appstore.conf.json`](../src-tauri/tauri.appstore.conf.json) → `bundle.macOS.bundleVersion`. This is separate from the SemVer in `tauri.conf.json` by design: the App Store permanently refuses any `CFBundleVersion` it has already seen for this bundle ID, so **every upload attempt needs a fresh number**, including re-uploads after a rejection. The marketing version only moves for real releases.
+The two identifiers from §1 have to be in the environment for anything that talks to App Store Connect — the build number lookup, validation, upload, and submission:
 
 ```bash
-scripts/release-mas.sh            # build, sign, package (validate too, if altool)
+export APPLE_API_KEY_ID="XXXXXXXXXX"
+export APPLE_API_ISSUER="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+scripts/release-mas.sh            # build, sign, package, validate
 UPLOAD=1 scripts/release-mas.sh   # …and upload to App Store Connect
+SUBMIT=1 scripts/release-mas.sh   # …and submit that build for review
 ```
 
 The signed package lands at:
@@ -119,7 +123,19 @@ The signed package lands at:
 src-tauri/target/universal-apple-darwin/release/bundle/macos/Paintlet_X.Y.Z.pkg
 ```
 
-After a successful upload the build takes 10–30 minutes to finish processing before it can be selected in App Store Connect. Then fill in the listing (§4) and submit for review.
+`SUBMIT=1` implies `UPLOAD=1` and finishes the job: it waits out Apple's build processing, creates the App Store version, attaches the build, writes the release notes, and submits. Nothing is left in a browser unless the listing itself needs editing or review comes back rejected.
+
+### The build number
+
+`CFBundleVersion` is deliberately not the marketing version. The App Store **permanently refuses any build number it has already seen** for this bundle ID, and a rejection or a failed validation burns one — so the number has to keep climbing whether or not a release ever shipped. Tying it to the SemVer would break the first time an upload had to be repeated.
+
+The authoritative record of what Apple has seen is App Store Connect, not a file in this repo, so the script asks: **highest build ever, plus one.** That is correct after a rejection, after a re-upload, and after a release cut from a different machine. The chosen number is written back into `bundle.macOS.bundleVersion` in [`src-tauri/tauri.appstore.conf.json`](../src-tauri/tauri.appstore.conf.json), so the file always records what was actually built.
+
+Set `BUILD_NUMBER` in the environment to override it, which is what the release workflow does — it picks the number once, commits it beside the version bump, and hands it to the build. With no API credentials at all the script falls back to the number already in the config and warns that Apple may reject it.
+
+### Release notes
+
+"What's New" is required for every version after the first. By default it is the commit subjects since the previous release tag — the same material the GitHub release notes are generated from, so both channels describe the release identically without anything being written twice. Point `NOTES_FILE` at a file to write them by hand instead.
 
 ## 3. What the script does
 
@@ -130,10 +146,19 @@ In order, exiting on the first failure, and doing every cheap check before the s
 3. Cross-checks the certificate's team ID against `com.apple.developer.team-identifier` and `com.apple.application-identifier` in `Entitlements.plist`. A team mismatch is the most common cause of a post-upload "Invalid Signature" rejection, and it is free to catch here.
 4. Confirms the provisioning profile exists and mentions the right bundle ID.
 5. Verifies the App Store Connect credentials **before** spending minutes compiling, if `UPLOAD=1`.
-6. Builds `--bundles app --target universal-apple-darwin` with `tauri.appstore.conf.json` merged in, signing with the distribution identity and the sandbox entitlements.
-7. Asserts the four things the store rejects silently: the **app-sandbox entitlement is actually in the signature**, `embedded.provisionprofile` **is in the bundle**, `LSApplicationCategoryType` **is set**, and `CFBundleVersion` **matches** what was configured.
-8. `productbuild --sign` to produce the `.pkg`, then `pkgutil --check-signature` to verify it.
-9. Validates the package if `altool` is installed, and with `UPLOAD=1`, uploads it — `altool --validate-app` / `--upload-app`, or `iTMSTransporter -m upload -assetFile`. The two take the same credentials but spell every other flag differently, and differ in capability as described in §1.
+6. Resolves the build number and writes it into the overlay config (§2).
+7. Builds `--bundles app --target universal-apple-darwin` with `tauri.appstore.conf.json` merged in, signing with the distribution identity and the sandbox entitlements.
+8. Asserts the four things the store rejects silently: the **app-sandbox entitlement is actually in the signature**, `embedded.provisionprofile` **is in the bundle**, `LSApplicationCategoryType` **is set**, and `CFBundleVersion` **matches** what was configured.
+9. `productbuild --sign` to produce the `.pkg`, then `pkgutil --check-signature` to verify it.
+10. Validates the package if `altool` is installed, and with `UPLOAD=1`, uploads it — `altool --validate-app` / `--upload-app`, or `iTMSTransporter -m upload -assetFile`. The two take the same credentials but spell every other flag differently, and differ in capability as described in §1.
+11. With `SUBMIT=1`, waits for the build to reach `VALID`, then creates the version, attaches the build, sets the release notes, and submits for review.
+
+Everything in App Store Connect is reached through [`scripts/asc.mjs`](../scripts/asc.mjs), a dependency-free client for the App Store Connect API. It is also useful on its own:
+
+```bash
+node scripts/asc.mjs status              # live version, recent builds
+node scripts/asc.mjs next-build-number   # what the next upload would use
+```
 
 ## 4. The listing
 
@@ -205,12 +230,22 @@ Two things to watch:
 - **An Apple ID on multiple teams** confuses the uploaders. Set `bundle.macOS.providerShortName` to disambiguate.
 - **A window that opens completely blank** — the sandboxed build is missing `com.apple.security.network.client`. See §5.
 
-## 7. Why this track stays manual
+## 7. Releasing from GitHub Actions
 
-The DMG releases from a GitHub Actions workflow ([`RELEASING.md`](RELEASING.md) §6). This one does not, and that is a choice rather than a gap.
+Both tracks ship from the one workflow, [`.github/workflows/release.yml`](../.github/workflows/release.yml) — see [`RELEASING.md`](RELEASING.md) §6 for how to run it and what secrets it needs. A `publish` run bumps the version, cuts the GitHub release, then builds a second time for the store, uploads, and submits for review, all from the same commit.
 
-Automating the build and upload is perfectly feasible — the runners even ship full Xcode, so `altool` is available there and gives a real `--validate-app` pre-flight that a Transporter-only Mac cannot do. What it would not remove is the manual part. The provisioning profile is gitignored, expires yearly, and would have to live as a secret that silently goes stale and then fails *after* a 25-minute build. And an upload is not a release: picking the build, answering the listing questions, and submitting for review all happen in a browser regardless. Automating the upload moves the manual step rather than removing it.
+Two things worth knowing about the CI path specifically.
 
-So: cut the GitHub release from Actions, then ship the same commit here by hand. Both come from one commit and neither affects the other.
+**The runners ship full Xcode**, so `altool` is available there and a `dry-run` gets a real `--validate-app` against App Store Connect without uploading anything. That is a stronger pre-flight than a Transporter-only Mac can manage locally, where validation and upload are necessarily the same run.
 
-If that calculus ever changes, the workflow would need the same certificate-import step as `release.yml` with the Developer ID material swapped for the two distribution certificates, plus `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, the base64 `.p8`, and the base64 provisioning profile.
+**The provisioning profile is the one part that fails on a calendar.** It expires yearly and lives as a base64 secret, so it goes stale silently. The workflow reads the expiry date before building and fails immediately if it has passed, with a warning a month out — but renewing means downloading a fresh profile from the portal and updating `MAS_PROVISIONING_PROFILE_BASE64` by hand. The current one expires **2027-08-11**.
+
+### What still needs a person
+
+- **Review.** Apple reviews every version, updates included; there is no fast path around it. Usually under a day. With `releaseType` set to `AFTER_APPROVAL`, approval puts the build on sale with no further action.
+- **A rejection.** Responding to one is a conversation, not a command.
+- **Listing changes.** Screenshots, description, keywords, and pricing carry forward untouched from the previous version. When they need to change, change them in the browser — the automation only ever writes "What's New".
+
+### Retrying just this half
+
+If the GitHub release succeeds and the App Store upload fails, re-run the workflow with `tracks: app-store-only`. It reuses the version already committed and tagged rather than bumping again, and picks a fresh build number, which is exactly what Apple requires after a failed or rejected upload.

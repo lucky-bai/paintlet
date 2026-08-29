@@ -17,6 +17,12 @@
 #
 #   scripts/release-mas.sh            # build, sign, package (validate if altool)
 #   UPLOAD=1 scripts/release-mas.sh   # …and upload to App Store Connect
+#   SUBMIT=1 scripts/release-mas.sh   # …and submit that build for review
+#
+# SUBMIT=1 implies UPLOAD=1 and finishes the job: it waits out Apple's build
+# processing, creates the App Store version, attaches the build, sets the
+# release notes, and submits. Nothing is left to do in a browser unless the
+# listing itself needs editing or review comes back rejected.
 #
 # Run from anywhere; paths are resolved from the script's own location.
 #
@@ -39,6 +45,11 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 APP_NAME="Paintlet"
 TARGET="universal-apple-darwin"
 UPLOAD="${UPLOAD:-0}"
+SUBMIT="${SUBMIT:-0}"
+# There is nothing to submit that was not uploaded, so asking for one asks for
+# the other. Written as an `if` rather than `[[ … ]] && …` because under
+# `set -e` a false test at the head of an && list exits the script.
+if [[ "$SUBMIT" == "1" ]]; then UPLOAD=1; fi
 
 # Absolute paths: the Tauri CLI resolves --config relative to the process CWD,
 # and an absolute path removes any doubt about which file it picked up.
@@ -120,11 +131,7 @@ else
 fi
 
 VERSION="$(sed -nE 's/.*"version": *"([^"]+)".*/\1/p' src-tauri/tauri.conf.json | head -n1 || true)"
-# CFBundleVersion comes from bundle.macOS.bundleVersion in the overlay, kept
-# separate from the marketing version so a rejected build can be re-uploaded.
-BUILD_NUMBER="$(sed -nE 's/.*"bundleVersion": *"([^"]+)".*/\1/p' "$APPSTORE_CONF" | head -n1 || true)"
-[[ -n "$BUILD_NUMBER" ]] || die "No bundleVersion in $APPSTORE_CONF"
-ok "Version $VERSION (build $BUILD_NUMBER)"
+ok "Marketing version: $VERSION"
 
 # ── the upload tool ──────────────────────────────────────────────────────────
 # Neither uploader ships with the Command Line Tools. altool comes with full
@@ -151,6 +158,37 @@ if [[ "$UPLOAD" == "1" ]]; then
   [[ -f "$KEY_FILE" ]] || warn "No key at $KEY_FILE — the uploaders also search ./private_keys and ~/private_keys"
   [[ -n "$UPLOADER" ]] || die "UPLOAD=1 but no upload tool found. Install Apple's Transporter from the Mac App Store (small), or full Xcode (large). The Command Line Tools alone ship neither altool nor iTMSTransporter (docs/RELEASING-MAS.md §1)."
   ok "API key $APPLE_API_KEY_ID, uploader: $UPLOADER"
+fi
+
+# ── the build number ─────────────────────────────────────────────────────────
+# CFBundleVersion is deliberately not the marketing version. The App Store
+# permanently refuses any build number it has already seen for this bundle ID,
+# and a rejection or a failed validation burns one — so the number has to keep
+# climbing independently of whether a release ever shipped.
+#
+# The authoritative record of what has been seen is App Store Connect itself,
+# not a file in this repo, so ask it: highest build ever + 1. That is correct
+# after a rejection, after a re-upload, and after a release cut from another
+# machine. Falling back to the config file when there are no credentials keeps
+# a plain offline `release-mas.sh` working as it always did.
+step "Choosing a build number"
+CONF_BUILD="$(sed -nE 's/.*"bundleVersion": *"([^"]+)".*/\1/p' "$APPSTORE_CONF" | head -n1 || true)"
+[[ -n "$CONF_BUILD" ]] || die "No bundleVersion in $APPSTORE_CONF"
+
+if [[ -n "${BUILD_NUMBER:-}" ]]; then
+  # An explicit number needs no API call — this is the path the release
+  # workflow takes, having already chosen and committed the number alongside
+  # the version bump.
+  BUILD_NUMBER="$(node "$SCRIPT_DIR/asc.mjs" set-build-number "$BUILD_NUMBER")"
+  ok "Build $BUILD_NUMBER (from the environment)"
+elif [[ -n "${APPLE_API_KEY_ID:-}" && -n "${APPLE_API_ISSUER:-}" ]]; then
+  BUILD_NUMBER="$(node "$SCRIPT_DIR/asc.mjs" set-build-number)" \
+    || die "Could not ask App Store Connect for the next build number"
+  ok "Build $BUILD_NUMBER (App Store Connect's highest + 1)"
+else
+  BUILD_NUMBER="$CONF_BUILD"
+  warn "No API credentials — reusing bundleVersion $BUILD_NUMBER from $APPSTORE_CONF."
+  warn "If that number has been uploaded before, Apple will reject it."
 fi
 
 # ── rust targets ─────────────────────────────────────────────────────────────
@@ -264,6 +302,52 @@ if [[ "$UPLOAD" == "1" ]]; then
   ok "Uploaded — the build appears in App Store Connect after processing (10–30 min)"
 fi
 
+# ── submit for review ────────────────────────────────────────────────────────
+# An upload is not a submission: the build sits in App Store Connect until a
+# version is created, the build attached, release notes written, and the whole
+# thing sent to review. All four are ordinary API calls, so none of them needs
+# a browser — see scripts/asc.mjs.
+#
+# Review itself is unavoidable. Every version of a Mac App Store app is
+# reviewed, including updates to an app already on sale; there is no fast path
+# to skip it. What is avoidable is a human driving the submission, and that is
+# what this does.
+if [[ "$SUBMIT" == "1" ]]; then
+  step "Waiting for Apple to finish processing build $BUILD_NUMBER"
+  node "$SCRIPT_DIR/asc.mjs" wait-for-build "$BUILD_NUMBER"
+
+  # "What's New" is mandatory for every version after the first. Default it to
+  # the commit subjects since the previous release tag, which is the same
+  # material the GitHub release notes are generated from — so the two channels
+  # describe the release identically without anything being written twice.
+  NOTES_FILE="${NOTES_FILE:-}"
+  CLEANUP_NOTES=0
+  if [[ -z "$NOTES_FILE" ]]; then
+    NOTES_FILE="$(mktemp -t paintlet-notes)"
+    CLEANUP_NOTES=1
+    PREV_TAG="$(git tag --list 'v*' --sort=-v:refname | grep -v "^v$VERSION\$" | head -n1 || true)"
+    if [[ -n "$PREV_TAG" ]]; then
+      # Merge commits and the bot's own "Release vX.Y.Z" commit describe the
+      # process rather than the product, so neither belongs in user-facing notes.
+      git log --no-merges --format='%s' "$PREV_TAG..HEAD" \
+        | grep -v '^Release v[0-9]' \
+        | sed 's/^/• /' > "$NOTES_FILE" || true
+    fi
+    # An empty file would be rejected by the API, and "no changes" is never the
+    # honest answer for a version that exists at all.
+    [[ -s "$NOTES_FILE" ]] || echo "Bug fixes and improvements." > "$NOTES_FILE"
+  fi
+  [[ -f "$NOTES_FILE" ]] || die "NOTES_FILE is set to '$NOTES_FILE', which is not a file"
+
+  step "Release notes for $VERSION"
+  sed 's/^/  /' "$NOTES_FILE" >&2
+
+  node "$SCRIPT_DIR/asc.mjs" submit "$VERSION" "$BUILD_NUMBER" --notes-file "$NOTES_FILE"
+  # Again an `if` rather than `&&`: a false test as the last command of this
+  # block would fail the block and, under `set -e`, the script.
+  if [[ "$CLEANUP_NOTES" == "1" ]]; then rm -f "$NOTES_FILE"; fi
+fi
+
 # ── summary ──────────────────────────────────────────────────────────────────
 step "Done"
 echo ""
@@ -271,9 +355,11 @@ echo "App Store package:"
 echo "  $PROJECT_DIR/$PKG"
 echo ""
 echo "Sandboxed, universal, signed for distribution — version $VERSION, build $BUILD_NUMBER."
-if [[ "$UPLOAD" == "1" ]]; then
-  echo "Next: pick this build in App Store Connect, fill in the listing, and submit for review."
-  echo "Bump bundle.macOS.bundleVersion in src-tauri/tauri.appstore.conf.json before the next upload."
+if [[ "$SUBMIT" == "1" ]]; then
+  echo "Submitted for review. Apple reviews every version, usually within a day;"
+  echo "it goes on sale automatically on approval (releaseType AFTER_APPROVAL)."
+elif [[ "$UPLOAD" == "1" ]]; then
+  echo "Next: re-run with SUBMIT=1, or pick this build in App Store Connect by hand."
 else
-  echo "Re-run with UPLOAD=1 to send it to App Store Connect."
+  echo "Re-run with UPLOAD=1 to send it to App Store Connect, or SUBMIT=1 to also submit it."
 fi
