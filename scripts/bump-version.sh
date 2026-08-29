@@ -54,14 +54,18 @@ if [[ $# -ge 1 && -n "${1:-}" ]]; then
   [[ "$NEXT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "'$NEXT' is not a MAJOR.MINOR.PATCH version"
 else
   IFS='.' read -r MAJOR MINOR PATCH <<<"$CURRENT"
+  # Every component stays a single digit: the version is an odometer that carries
+  # at ten rather than a SemVer triple whose parts grow without bound. So
+  # 0.1.9 → 0.2.0, and 0.9.9 → 1.0.0. Passing a version explicitly still skips
+  # anywhere, which is how a release jumps ahead of the count.
   PATCH=$((PATCH + 1))
-  # Patch rolls over into minor at 10, so the patch component stays a single
-  # digit: 0.1.9 → 0.2.0, not 0.1.10. Minor does NOT roll over into major the
-  # same way — a 1.0.0 says something about the software that only a person can
-  # decide, so it is reached by passing the version explicitly.
   if [[ "$PATCH" -ge 10 ]]; then
     PATCH=0
     MINOR=$((MINOR + 1))
+  fi
+  if [[ "$MINOR" -ge 10 ]]; then
+    MINOR=0
+    MAJOR=$((MAJOR + 1))
   fi
   NEXT="$MAJOR.$MINOR.$PATCH"
 fi

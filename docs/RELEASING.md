@@ -85,7 +85,7 @@ DRY_RUN=1 scripts/bump-version.sh # print the next version, change nothing
 
 It refuses to run if the files disagree or if the target version already has a tag, and verifies every file afterwards.
 
-**The patch component rolls over into minor at ten:** `0.1.9` → `0.2.0`, never `0.1.10`. Minor does *not* roll into major the same way — `0.9.9` bumps to `0.10.0`, because a `1.0.0` says something about the software that only a person should decide. Reach one by passing it explicitly.
+**The version is an odometer, not a SemVer triple.** Every component stays a single digit and carries at ten: `0.1.9` → `0.2.0`, and `0.9.9` → `1.0.0`. Passing a version explicitly still skips anywhere, which is how a release jumps ahead of the count.
 
 Then commit and push:
 
