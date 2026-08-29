@@ -22,13 +22,18 @@ import { applyTheme } from "./lib/theme";
 // These live in a keydown handler rather than the menu because single-key menu
 // accelerators would hijack every keystroke in the text editor.
 const TOOL_KEYS: Record<string, ToolId> = {
-  s: "select",
   p: "pencil",
   b: "fill",
   t: "text",
   e: "eraser",
   i: "eyedropper",
 };
+
+// `S` is the exception: in Paint it cycles the selection modes rather than
+// picking one, so pressing it again swaps the marquee for the lasso and back.
+// A live selection survives the swap — CanvasStage only bakes one down when
+// leaving for a tool outside this pair.
+const SELECT_CYCLE: ToolId[] = ["select", "freeSelect"];
 
 // Arrow key → the direction it nudges a selection. One pixel per press, as in
 // Paint; no coarse-step modifier, because Paint has none.
@@ -79,9 +84,9 @@ function App() {
   // which starts with no data-theme of its own.
   useEffect(() => applyTheme(theme), [theme]);
 
-  // Keyboard: zoom (⌘+/-/0), delete and nudge the selection, and single-key
-  // tool switching. ⌘-combos owned by the native menu (undo, save, clipboard,
-  // …) fall through.
+  // Keyboard: zoom (⌘+/-/0), ⌘Y redo, delete and nudge the selection, and
+  // single-key tool switching. ⌘-combos owned by the native menu (undo, save,
+  // clipboard, …) fall through.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null;
@@ -104,6 +109,12 @@ function App() {
         } else if (e.key === "9") {
           e.preventDefault();
           A.fitToWindow();
+        } else if (e.key.toLowerCase() === "y") {
+          // Paint's redo key, kept alongside the menu's ⇧⌘Z. It lives here
+          // rather than on the menu item because an item carries one
+          // accelerator, and ⇧⌘Z is the one worth showing on a Mac.
+          e.preventDefault();
+          A.redo();
         }
         return; // other ⌘-combos belong to the menu
       }
@@ -133,7 +144,14 @@ function App() {
 
       if (e.altKey) return; // Option makes these keys type symbols, not commands
 
-      const id = TOOL_KEYS[e.key.toLowerCase()];
+      const key = e.key.toLowerCase();
+      if (key === "s") {
+        // From anywhere else this lands on the marquee (indexOf → -1 → 0).
+        const i = SELECT_CYCLE.indexOf(usePaintStore.getState().activeToolId);
+        setTool(SELECT_CYCLE[(i + 1) % SELECT_CYCLE.length]);
+        return;
+      }
+      const id = TOOL_KEYS[key];
       if (id) setTool(id);
     };
     window.addEventListener("keydown", onKey);

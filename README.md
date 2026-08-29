@@ -43,7 +43,7 @@ A **universal** build (Apple Silicon + Intel), signed and notarized by Apple —
 - **Zoom & pan** — 0.25×–8× crisp pixelated scaling, fit-to-window, pinch/⌘-wheel zoom, and space-drag panning.
 - **Undo / redo** — ⌘Z / ⇧⌘Z across every edit, including resizes and crops.
 - **Native macOS UI** — real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
-- **Shortcuts that match Paint** — `S P B T E I` for the six tools Windows Paint gives a letter to, arrows to nudge a selection a pixel at a time, and `Esc` to cancel. Where Paint binds nothing, neither does Paintlet; each shortcut is repeated in the tooltip of the control it drives.
+- **Shortcuts that match Paint** — `S P B T E I` for the six tools Windows Paint gives a letter to (`S` again swaps marquee for lasso), arrows to nudge a selection a pixel at a time, `⌘Y` or `⇧⌘Z` to redo, and `Esc` to cancel. Where Paint binds nothing, neither does Paintlet.
 - **Settings & theme** (⌘,) — Light by default, with Dark and System appearance; persisted across launches.
 
 Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design and architecture.

@@ -10,26 +10,16 @@ import { TextOptions } from "./TextOptions";
 
 // `key` is the tool's shortcut letter, present only for the tools Windows Paint
 // gives one (see TOOL_KEYS in App.tsx); the rest are mouse-only there and here.
-// `hint` is appended to the tooltip — the place to teach a shortcut that isn't
-// the tool's own letter.
 type ToolDef = {
   id: ToolId;
   icon: IconName;
   label: string;
   key?: string;
-  hint?: string;
 };
 
-const SELECT_HINT = "arrow keys nudge it a pixel";
-
 const SELECT_TOOLS: ToolDef[] = [
-  { id: "select", icon: "select", label: "Select", key: "S", hint: SELECT_HINT },
-  {
-    id: "freeSelect",
-    icon: "lasso",
-    label: "Free-form select",
-    hint: SELECT_HINT,
-  },
+  { id: "select", icon: "select", label: "Select", key: "S" },
+  { id: "freeSelect", icon: "lasso", label: "Free-form select" },
 ];
 
 // Drawing tools laid out to fill two rows (Win11 Paint's compact Tools group).
@@ -84,9 +74,9 @@ function ToolGrid({ tools }: { tools: ToolDef[] }) {
             title={
               !enabled
                 ? `${t.label} — coming soon`
-                : [t.key ? `${t.label} (${t.key})` : t.label, t.hint]
-                    .filter(Boolean)
-                    .join(" — ")
+                : t.key
+                  ? `${t.label} (${t.key})`
+                  : t.label
             }
             active={activeToolId === t.id}
             disabled={!enabled}

@@ -395,9 +395,9 @@ Because WebP and HEIC open but can't be written, ⌘S on one can't re-write in p
 ## 9. Keyboard shortcuts (via native menu)
 
 - ⌘, settings · ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as
-- ⌘Z undo · ⇧⌘Z redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all
+- ⌘Z undo · ⇧⌘Z or ⌘Y redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all
 - ⌘+ / ⌘− / ⌘0 zoom in / out / actual size · ⌘9 fit to window
-- `S` select · `P` pencil · `B` fill · `T` text · `E` eraser · `I` color picker · `Esc` cancel current action
+- `S` select (press again to swap marquee ↔ lasso) · `P` pencil · `B` fill · `T` text · `E` eraser · `I` color picker · `Esc` cancel current action
 - ← ↑ → ↓ nudge the selection by one pixel
 
 A nudge is the keyboard half of a drag and shares its machinery: the first arrow press lifts the selection into a float (leaving a background-colored hole), later presses reposition it, and the one history step lands when the float is committed on deselect — so a run of presses undoes as a single move. The arrows are only swallowed when a selection actually moved; otherwise they keep scrolling the work area.
@@ -407,6 +407,10 @@ A nudge is the keyboard half of a drag and shares its machinery: the first arrow
 The reference is Windows 11 Paint: where it binds a key, Paintlet binds the same one with ⌘ for Ctrl, and where it binds nothing, Paintlet stays bare rather than borrowing a convention from Photoshop or Paint.NET. That rules out a color-swap key, a deselect accelerator (Paint cancels with `Esc`), a coarse-nudge modifier, and `[` / `]` for stroke width — none of which Paint has. `⌘+` / `⌘−` are zoom in both.
 
 Paint's tool letters are undocumented by Microsoft, and the third-party lists that reproduce them are unreliable — they were checked against the running app. Six tools carry one: `S` select, `P` pencil, `B` fill bucket, `T` text, `E` eraser, `I` color picker. The brush and all six shapes have none, so they are mouse-only here too, and `B` is the bucket rather than the brush. Paint's `Z` picks its magnifier, a tool Paintlet has no equivalent for, so `Z` stays unbound rather than being repurposed.
+
+`S` cycles rather than picks, as it does in Paint: pressing it again swaps the rectangular marquee for the lasso and back, which is the lasso's only keyboard route now that `W` is gone. A live selection survives the swap — CanvasStage skips `onDeactivate` when both the old and new tool are selection tools, so only leaving the pair bakes the float down. Anything that needs one mode specifically has to set it outright rather than pressing `S`, since where the cycle lands depends on what was already active.
+
+⌘Y redoes alongside ⇧⌘Z, matching Paint's Ctrl+Y. It's handled in the keydown listener rather than on the menu item, which carries a single accelerator — and ⇧⌘Z is the one worth showing on a Mac.
 
 ---
 

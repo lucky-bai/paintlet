@@ -92,6 +92,11 @@ const setTool = (id) =>
     async (t) => (await import("/src/state/store.ts")).usePaintStore.getState().setTool(t),
     id,
   );
+const activeTool = () =>
+  page.evaluate(
+    async () =>
+      (await import("/src/state/store.ts")).usePaintStore.getState().activeToolId,
+  );
 // Shape width is one of the discrete 1/3/5/8 presets — set it through the store.
 const setShapeSize = (n) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setShapeSize(v), n);
@@ -145,10 +150,17 @@ await action("undo");
 const afterUndo = await countPx(0, 150, 140, 20, 20, "dark");
 await action("redo");
 const afterRedo = await countPx(0, 150, 140, 20, 20, "dark");
+// ⌘Y is Paint's redo key, kept alongside the menu's ⇧⌘Z. Drive it as a real
+// key press — it's handled in App.tsx's keydown, not by a menu accelerator.
+await action("undo");
+const beforeCmdY = await countPx(0, 150, 140, 20, 20, "dark");
+await page.keyboard.press("Control+y");
+await page.waitForTimeout(40);
+const afterCmdY = await countPx(0, 150, 140, 20, 20, "dark");
 step(
-  "undo/redo walk the fill",
-  afterUndo === 0 && afterRedo === 400,
-  `afterUndo=${afterUndo} afterRedo=${afterRedo}`,
+  "undo/redo walk the fill, and ⌘Y redoes",
+  afterUndo === 0 && afterRedo === 400 && beforeCmdY === 0 && afterCmdY === 400,
+  `afterUndo=${afterUndo} afterRedo=${afterRedo} cmdY=${beforeCmdY}→${afterCmdY}`,
 );
 
 // ── 3. eraser cuts hard (no gray fringe a flood fill would halo around) ───
@@ -226,18 +238,29 @@ step(
   `onOutline=${antsOn} atBboxCorner=${antsCorner} moved=${moved} holeLeft=${holeLeft}`,
 );
 
-// ── 6b. the selection survives switching between marquee and lasso ────────
-await page.keyboard.press("s");
+// ── 6b. `s` cycles marquee ↔ lasso, and the selection survives the switch ──
+// As in Paint, a second `s` swaps the two selection modes rather than being a
+// no-op, and swapping must not bake a live selection down.
+await setTool("pencil");
+await page.keyboard.press("s"); // from elsewhere → marquee
+const cycle0 = await activeTool();
 await dragTo(700, 100, 780, 160);
-await setTool("freeSelect"); // marquee → lasso must NOT bake it down
+await page.keyboard.press("s"); // again → lasso
+const cycle1 = await activeTool();
 await page.waitForTimeout(150);
 const keptReadout = await page.getByText("⬚").count();
 const keptAnts = await countPx(2, 700, 98, 80, 6, "alpha");
+await page.keyboard.press("s"); // and back → marquee
+const cycle2 = await activeTool();
 await page.keyboard.press("Escape");
 step(
-  "selection survives marquee ↔ lasso switch",
-  keptReadout === 1 && keptAnts > 0,
-  `sizeReadout=${keptReadout} ants=${keptAnts}`,
+  "`s` cycles marquee ↔ lasso and the selection survives",
+  cycle0 === "select" &&
+    cycle1 === "freeSelect" &&
+    cycle2 === "select" &&
+    keptReadout === 1 &&
+    keptAnts > 0,
+  `cycle=${cycle0}→${cycle1}→${cycle2} sizeReadout=${keptReadout} ants=${keptAnts}`,
 );
 
 // ── 7. text: click, type immediately, switch tool → rasterized ────────────
@@ -352,7 +375,7 @@ void ovalCornerWhite;
 
 // ── 11. selection resize grip scales the selection (Shift = keep aspect) ──
 await reset();
-await page.keyboard.press("s");
+await setTool("select"); // `s` cycles, so pin the marquee explicitly
 await dragTo(100, 100, 300, 200); // 200×100 marquee
 await page.waitForTimeout(60);
 const beforeSel = (await storeState()).selectionSize;
@@ -375,7 +398,7 @@ await page.evaluate(async () => {
   engine.snapshot("setup");
 });
 await page.waitForTimeout(40);
-await page.keyboard.press("s");
+await setTool("select"); // `s` cycles, so pin the marquee explicitly
 await dragTo(330, 100, 470, 220);
 await page.waitForTimeout(40);
 await dragTo(400, 160, 400, 460);
@@ -436,7 +459,7 @@ step(
 
 // ── 15. hovering inside a selection telegraphs a move ─────────────────────
 await reset();
-await page.keyboard.press("s");
+await setTool("select"); // `s` cycles, so pin the marquee explicitly
 await dragTo(120, 120, 320, 240);
 await page.waitForTimeout(40);
 await page.mouse.move(...at(220, 180)); // inside the marquee, no button held
