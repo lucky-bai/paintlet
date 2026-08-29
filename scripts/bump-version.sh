@@ -106,10 +106,16 @@ sed -i '' -E "s/^version *= *\"$CURRENT\"/version = \"$NEXT\"/" "$CARGO_TOML"
 
 # Cargo.lock records the crate's own version too. `cargo update -p` rewrites
 # just that entry without touching any dependency, so the lockfile stays a
-# one-line diff. --offline because nothing needs to be fetched to renumber the
-# local package, and a release runner should not be reaching out to crates.io
-# for a version bump.
+# one-line diff.
+#
+# --offline is tried first because nothing needs to be fetched to renumber a
+# local package, and a warm checkout should not reach out to crates.io for a
+# version bump. It cannot be the only attempt, though: --offline still needs a
+# registry index to read, and a CI runner that has not run a cargo command yet
+# has none — so the bump would fail there on a cold cache while working
+# perfectly on any developer's Mac.
 cargo update --manifest-path "$CARGO_TOML" --offline -p paintlet >/dev/null 2>&1 \
+  || cargo update --manifest-path "$CARGO_TOML" -p paintlet >/dev/null 2>&1 \
   || die "cargo update could not renumber paintlet in Cargo.lock"
 
 # ── verify every file landed ─────────────────────────────────────────────────
