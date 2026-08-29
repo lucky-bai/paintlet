@@ -205,6 +205,12 @@ Two things to watch:
 - **An Apple ID on multiple teams** confuses the uploaders. Set `bundle.macOS.providerShortName` to disambiguate.
 - **A window that opens completely blank** — the sandboxed build is missing `com.apple.security.network.client`. See §5.
 
-## 7. CI (optional, later)
+## 7. Why this track stays manual
 
-The same secrets as `RELEASING.md` §6, with the Developer ID material swapped for the distribution certificates, plus `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, and the base64 of the `.p8`. Worth setting up only once the manual path has succeeded end to end at least once — the first submission always surfaces something.
+The DMG releases from a GitHub Actions workflow ([`RELEASING.md`](RELEASING.md) §6). This one does not, and that is a choice rather than a gap.
+
+Automating the build and upload is perfectly feasible — the runners even ship full Xcode, so `altool` is available there and gives a real `--validate-app` pre-flight that a Transporter-only Mac cannot do. What it would not remove is the manual part. The provisioning profile is gitignored, expires yearly, and would have to live as a secret that silently goes stale and then fails *after* a 25-minute build. And an upload is not a release: picking the build, answering the listing questions, and submitting for review all happen in a browser regardless. Automating the upload moves the manual step rather than removing it.
+
+So: cut the GitHub release from Actions, then ship the same commit here by hand. Both come from one commit and neither affects the other.
+
+If that calculus ever changes, the workflow would need the same certificate-import step as `release.yml` with the Developer ID material swapped for the two distribution certificates, plus `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, the base64 `.p8`, and the base64 provisioning profile.

@@ -14,9 +14,15 @@
 #
 # One-time setup this assumes (see docs/RELEASING.md for the how-to):
 #   • A "Developer ID Application" cert + private key in the login keychain.
-#   • A notary keychain profile named "paintlet-notary".
+#   • A notary keychain profile named "paintlet-notary" — or, on a machine that
+#     has no keychain profile (a CI runner), the three NOTARY_* variables below.
 #   • rustup targets aarch64-apple-darwin and x86_64-apple-darwin (auto-added
 #     below if missing).
+#
+# Notary credentials, in either form:
+#   • NOTARY_KEY / NOTARY_KEY_ID / NOTARY_ISSUER — an App Store Connect API key
+#     (.p8 path, key ID, issuer UUID). Used when all three are set.
+#   • otherwise the "paintlet-notary" keychain profile, which is the local path.
 #
 # The signing identity is auto-detected from the keychain, so no team ID or
 # secret is ever hardcoded here or committed.
@@ -52,10 +58,25 @@ IDENTITY="$(security find-identity -v -p codesigning \
 [[ -n "$IDENTITY" ]] || die "No 'Developer ID Application' identity in the keychain — import Certificates.p12 first (docs/RELEASING.md §1)"
 ok "Signing identity: $IDENTITY"
 
-# Confirm the notary profile exists (a lightweight authenticated call).
-xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
-  || die "Notary profile '$NOTARY_PROFILE' missing or unreachable — run notarytool store-credentials (docs/RELEASING.md §1)"
-ok "Notary profile: $NOTARY_PROFILE"
+# Resolve how notarytool will authenticate. A keychain profile is the right
+# answer on a personal Mac — store the credential once, never type it again —
+# but a CI runner has no login keychain to have stored it in, so an App Store
+# Connect API key is accepted as the alternative. Both are passed to the same
+# two notarytool calls below, so the choice is made once, here.
+if [[ -n "${NOTARY_KEY:-}" && -n "${NOTARY_KEY_ID:-}" && -n "${NOTARY_ISSUER:-}" ]]; then
+  [[ -f "$NOTARY_KEY" ]] || die "NOTARY_KEY is set to '$NOTARY_KEY', which is not a file"
+  NOTARY_AUTH=(--key "$NOTARY_KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+  NOTARY_DESC="API key $NOTARY_KEY_ID"
+else
+  NOTARY_AUTH=(--keychain-profile "$NOTARY_PROFILE")
+  NOTARY_DESC="keychain profile $NOTARY_PROFILE"
+fi
+
+# Confirm the credentials work (a lightweight authenticated call). Worth the
+# round trip: the alternative is discovering they are wrong after the build.
+xcrun notarytool history "${NOTARY_AUTH[@]}" >/dev/null 2>&1 \
+  || die "Notary credentials unreachable ($NOTARY_DESC) — run notarytool store-credentials, or set NOTARY_KEY / NOTARY_KEY_ID / NOTARY_ISSUER (docs/RELEASING.md §1)"
+ok "Notary auth: $NOTARY_DESC"
 
 VERSION="$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/' || true)"
 ok "Version: $VERSION"
@@ -94,7 +115,7 @@ ok "Signature valid"
 
 # ── notarize + staple ────────────────────────────────────────────────────────
 step "Submitting to Apple notary service (usually 2–10 min)"
-xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+xcrun notarytool submit "$DMG" "${NOTARY_AUTH[@]}" --wait
 ok "Notarized"
 
 step "Stapling the ticket"
