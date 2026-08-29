@@ -64,6 +64,7 @@ export async function installAppMenu(): Promise<void> {
       await item("Delete", undefined, A.deleteSelection),
       await sep(),
       await item("Select All", "CmdOrCtrl+A", A.selectAll),
+      await item("Deselect", "CmdOrCtrl+D", A.deselect),
       await sep(),
       await item("Resize…", undefined, A.openResizeDialog),
       await item("Crop to Selection", undefined, A.crop),

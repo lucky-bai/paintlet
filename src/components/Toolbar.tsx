@@ -1,18 +1,35 @@
 import type { ReactNode } from "react";
 import { engine, usePaintStore } from "../state/store";
-import { isImplemented, isShapeTool } from "../tools/registry";
+import { isFreehandTool, isImplemented, isShapeTool } from "../tools/registry";
 import type { ToolId } from "../engine/types";
 import { cx } from "../lib/cx";
+import { BRUSH_MAX, BRUSH_MIN, SHAPE_SIZES } from "../lib/sizes";
 import { Icon, type IconName } from "./Icon";
 import { ToolButton } from "./ToolButton";
 import { ColorControls } from "./ColorControls";
 import { TextOptions } from "./TextOptions";
 
-type ToolDef = { id: ToolId; icon: IconName; label: string; key: string };
+// `hint` is appended to the button's tooltip — the place to teach a shortcut
+// that isn't the tool's own letter.
+type ToolDef = {
+  id: ToolId;
+  icon: IconName;
+  label: string;
+  key: string;
+  hint?: string;
+};
+
+const SELECT_HINT = "arrow keys nudge, ⇧ for 10px, ⌘D deselects";
 
 const SELECT_TOOLS: ToolDef[] = [
-  { id: "select", icon: "select", label: "Select", key: "S" },
-  { id: "freeSelect", icon: "lasso", label: "Free-form select", key: "W" },
+  { id: "select", icon: "select", label: "Select", key: "S", hint: SELECT_HINT },
+  {
+    id: "freeSelect",
+    icon: "lasso",
+    label: "Free-form select",
+    key: "W",
+    hint: SELECT_HINT,
+  },
 ];
 
 // Drawing tools laid out to fill two rows (Win11 Paint's compact Tools group).
@@ -39,8 +56,9 @@ const SHAPE_TOOLS: ToolDef[] = [
   { id: "polygon", icon: "polygon", label: "Polygon", key: "G" },
 ];
 
-// Shapes draw at one of a few fixed widths (not the continuous pencil slider).
-const SHAPE_SIZES = [1, 3, 5, 8];
+// Shown on every stroke-width control, so the shortcut is discoverable from
+// the one place a user goes to change the width by hand.
+const SIZE_HINT = "[ and ] resize";
 
 // A labeled ribbon group: content on top, a small caption underneath — the
 // Win11 Paint layout the user asked to get closer to.
@@ -69,7 +87,13 @@ function ToolGrid({ tools }: { tools: ToolDef[] }) {
         return (
           <ToolButton
             key={t.id}
-            title={enabled ? `${t.label} (${t.key})` : `${t.label} — coming soon`}
+            title={
+              !enabled
+                ? `${t.label} — coming soon`
+                : t.hint
+                  ? `${t.label} (${t.key}) — ${t.hint}`
+                  : `${t.label} (${t.key})`
+            }
             active={activeToolId === t.id}
             disabled={!enabled}
             onClick={() => setTool(t.id)}
@@ -91,13 +115,13 @@ function SizeSlider() {
     <div className="flex items-center gap-2 px-1">
       <input
         type="range"
-        min={1}
-        max={64}
+        min={BRUSH_MIN}
+        max={BRUSH_MAX}
         step={1}
         value={brushSize}
         onChange={(e) => setBrushSize(Number(e.target.value))}
         className="w-28 accent-[var(--vp-accent)]"
-        title={`${brushSize}px`}
+        title={`${brushSize}px — ${SIZE_HINT}`}
       />
       <span className="w-8 text-right text-xs tabular-nums text-ink-muted">
         {brushSize}px
@@ -116,7 +140,7 @@ function ShapeSizePicker() {
         <button
           key={n}
           type="button"
-          title={`${n}px`}
+          title={`${n}px — ${SIZE_HINT}`}
           onClick={() => setShapeSize(n)}
           className={cx(
             "h-7 w-8 rounded-md text-xs tabular-nums",
@@ -155,11 +179,7 @@ function ContextGroup() {
         </Group>
       </>
     );
-  if (
-    activeToolId === "pencil" ||
-    activeToolId === "brush" ||
-    activeToolId === "eraser"
-  )
+  if (isFreehandTool(activeToolId))
     return (
       <>
         <Divider />
