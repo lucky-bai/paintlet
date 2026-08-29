@@ -60,6 +60,19 @@ export function isShapeTool(id: ToolId): boolean {
   return SHAPE_TOOLS.has(id);
 }
 
+// Tools drawn with the continuous width slider. The rest — select, lasso, fill,
+// text, eyedropper — have no stroke width at all, so neither the ribbon's size
+// group nor the `[` / `]` shortcuts apply to them.
+const FREEHAND_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
+  "pencil",
+  "brush",
+  "eraser",
+]);
+
+export function isFreehandTool(id: ToolId): boolean {
+  return FREEHAND_TOOLS.has(id);
+}
+
 // Tools the toolbar should render as enabled (implemented).
 export function isImplemented(id: ToolId): boolean {
   return ENABLED.has(id);

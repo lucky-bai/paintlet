@@ -84,6 +84,19 @@ const storeState = () =>
   });
 const setZoom = (z) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setZoom(v), z);
+// Only six tools carry a shortcut in Paint (s/p/b/t/e/i); every other one is
+// reached through the store, as is any tool switch that must survive focus
+// being left in a prior field.
+const setTool = (id) =>
+  page.evaluate(
+    async (t) => (await import("/src/state/store.ts")).usePaintStore.getState().setTool(t),
+    id,
+  );
+const activeTool = () =>
+  page.evaluate(
+    async () =>
+      (await import("/src/state/store.ts")).usePaintStore.getState().activeToolId,
+  );
 // Shape width is one of the discrete 1/3/5/8 presets — set it through the store.
 const setShapeSize = (n) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setShapeSize(v), n);
@@ -103,7 +116,7 @@ const dragTo = async (x1, y1, x2, y2) => {
 };
 
 // ── 1. 1px rectangle commits exactly 1px thick, then fills with no halo ───
-await page.keyboard.press("r");
+await setTool("rectangle");
 await setShapeSize(1);
 await dragTo(100, 100, 300, 200);
 const edgeRows = await page.evaluate(() => {
@@ -122,7 +135,7 @@ step(
   `dark rows at x=150: [${edgeRows}]`,
 );
 
-await page.keyboard.press("f");
+await page.keyboard.press("b"); // Paint's bucket key
 await clickAt(200, 150);
 const filled = await countPx(0, 150, 140, 20, 20, "dark");
 const halo = await countPx(0, 95, 95, 40, 15, "gray");
@@ -137,10 +150,17 @@ await action("undo");
 const afterUndo = await countPx(0, 150, 140, 20, 20, "dark");
 await action("redo");
 const afterRedo = await countPx(0, 150, 140, 20, 20, "dark");
+// ⌘Y is Paint's redo key, kept alongside the menu's ⇧⌘Z. Drive it as a real
+// key press — it's handled in App.tsx's keydown, not by a menu accelerator.
+await action("undo");
+const beforeCmdY = await countPx(0, 150, 140, 20, 20, "dark");
+await page.keyboard.press("Control+y");
+await page.waitForTimeout(40);
+const afterCmdY = await countPx(0, 150, 140, 20, 20, "dark");
 step(
-  "undo/redo walk the fill",
-  afterUndo === 0 && afterRedo === 400,
-  `afterUndo=${afterUndo} afterRedo=${afterRedo}`,
+  "undo/redo walk the fill, and ⌘Y redoes",
+  afterUndo === 0 && afterRedo === 400 && beforeCmdY === 0 && afterCmdY === 400,
+  `afterUndo=${afterUndo} afterRedo=${afterRedo} cmdY=${beforeCmdY}→${afterCmdY}`,
 );
 
 // ── 3. eraser cuts hard (no gray fringe a flood fill would halo around) ───
@@ -176,12 +196,12 @@ step(
 await reset(); // leave a clean white canvas for the tests below
 
 // ── 5. polygon: multi-click, close on first vertex, Esc cancels a new one ─
-await page.keyboard.press("g");
+await setTool("polygon");
 await dragTo(400, 100, 500, 100);
 await clickAt(500, 180);
 await clickAt(400, 100); // close
 const polyEdge = await countPx(0, 430, 96, 40, 8, "dark");
-await page.keyboard.press("g");
+await setTool("polygon");
 await dragTo(600, 100, 700, 100);
 await page.keyboard.press("Escape");
 const cancelled = await countPx(1, 580, 80, 140, 40, "alpha");
@@ -192,7 +212,7 @@ step(
 );
 
 // ── 6. lasso: trace, ants follow the outline, move leaves a shaped hole ───
-await page.keyboard.press("w");
+await setTool("freeSelect");
 const cx = 450, cy = 133, r = 60;
 await page.mouse.move(...at(cx + r, cy));
 await page.mouse.down();
@@ -218,18 +238,29 @@ step(
   `onOutline=${antsOn} atBboxCorner=${antsCorner} moved=${moved} holeLeft=${holeLeft}`,
 );
 
-// ── 6b. the selection survives switching between marquee and lasso ────────
-await page.keyboard.press("s");
+// ── 6b. `s` cycles marquee ↔ lasso, and the selection survives the switch ──
+// As in Paint, a second `s` swaps the two selection modes rather than being a
+// no-op, and swapping must not bake a live selection down.
+await setTool("pencil");
+await page.keyboard.press("s"); // from elsewhere → marquee
+const cycle0 = await activeTool();
 await dragTo(700, 100, 780, 160);
-await page.keyboard.press("w"); // marquee → lasso must NOT bake it down
+await page.keyboard.press("s"); // again → lasso
+const cycle1 = await activeTool();
 await page.waitForTimeout(150);
 const keptReadout = await page.getByText("⬚").count();
 const keptAnts = await countPx(2, 700, 98, 80, 6, "alpha");
+await page.keyboard.press("s"); // and back → marquee
+const cycle2 = await activeTool();
 await page.keyboard.press("Escape");
 step(
-  "selection survives marquee ↔ lasso switch",
-  keptReadout === 1 && keptAnts > 0,
-  `sizeReadout=${keptReadout} ants=${keptAnts}`,
+  "`s` cycles marquee ↔ lasso and the selection survives",
+  cycle0 === "select" &&
+    cycle1 === "freeSelect" &&
+    cycle2 === "select" &&
+    keptReadout === 1 &&
+    keptAnts > 0,
+  `cycle=${cycle0}→${cycle1}→${cycle2} sizeReadout=${keptReadout} ants=${keptAnts}`,
 );
 
 // ── 7. text: click, type immediately, switch tool → rasterized ────────────
@@ -311,12 +342,12 @@ box = await canvasBox();
 await reset();
 const setColor1 = (hex) =>
   page.evaluate(async (h) => (await import("/src/state/store.ts")).usePaintStore.getState().setColor1(h), hex);
-await page.keyboard.press("o");
+await setTool("ellipse");
 await setShapeSize(1);
 await dragTo(200, 150, 600, 450);
 await page.waitForTimeout(30);
 await setColor1("#ed1c24");
-await page.keyboard.press("f");
+await setTool("fill");
 await clickAt(400, 300);
 await page.waitForTimeout(30);
 const ovalInside = await page.evaluate(() => {
@@ -344,7 +375,7 @@ void ovalCornerWhite;
 
 // ── 11. selection resize grip scales the selection (Shift = keep aspect) ──
 await reset();
-await page.keyboard.press("s");
+await setTool("select"); // `s` cycles, so pin the marquee explicitly
 await dragTo(100, 100, 300, 200); // 200×100 marquee
 await page.waitForTimeout(60);
 const beforeSel = (await storeState()).selectionSize;
@@ -367,7 +398,7 @@ await page.evaluate(async () => {
   engine.snapshot("setup");
 });
 await page.waitForTimeout(40);
-await page.keyboard.press("s");
+await setTool("select"); // `s` cycles, so pin the marquee explicitly
 await dragTo(330, 100, 470, 220);
 await page.waitForTimeout(40);
 await dragTo(400, 160, 400, 460);
@@ -413,11 +444,6 @@ const setBrushSize = (n) =>
 // getComputedStyle, but the inline style still carries the real url(...) string.
 const overlayCursor = () =>
   page.locator("canvas").nth(1).evaluate((el) => el.style.cursor);
-const setTool = (id) =>
-  page.evaluate(
-    async (t) => (await import("/src/state/store.ts")).usePaintStore.getState().setTool(t),
-    id,
-  );
 await setTool("brush"); // via store: robust to focus left in a prior field
 await setBrushSize(4);
 await page.waitForTimeout(30);
@@ -433,7 +459,7 @@ step(
 
 // ── 15. hovering inside a selection telegraphs a move ─────────────────────
 await reset();
-await page.keyboard.press("s");
+await setTool("select"); // `s` cycles, so pin the marquee explicitly
 await dragTo(120, 120, 320, 240);
 await page.waitForTimeout(40);
 await page.mouse.move(...at(220, 180)); // inside the marquee, no button held
@@ -443,7 +469,7 @@ await page.keyboard.press("Escape");
 step("move cursor shows inside a selection", insideCur === "move", `cursor=${insideCur}`);
 
 // ── 16. status bar surfaces a per-tool usage hint (curve) ─────────────────
-await page.keyboard.press("c");
+await setTool("curve");
 await page.waitForTimeout(30);
 const curveHint = await page.getByText(/click twice to bend/i).count();
 await page.keyboard.press("p");
@@ -460,7 +486,7 @@ await setZoom(1);
 await page.waitForTimeout(30);
 box = await canvasBox();
 await setColor1("#000000");
-await page.keyboard.press("c");
+await setTool("curve");
 await setShapeSize(3);
 await clickAt(200, 300); // start
 await page.waitForTimeout(20);
@@ -651,6 +677,67 @@ step(
   "About opens as a real window (nothing mounted in the main document)",
   aboutInDom === 0,
   `aboutTextInDom=${aboutInDom} dialogsBeforeEsc=${dialogsBefore}`,
+);
+
+// ── 26. arrow keys nudge a selection, and the run undoes as one move ──────
+// A nudge is the keyboard half of a drag: the first press lifts the pixels into
+// a float, later ones reposition it, and the single history step lands when the
+// float is committed. So four presses must undo in one.
+await setZoom(1);
+await page.evaluate(async () => {
+  const { engine } = await import("/src/state/store.ts");
+  engine.newDocument(800, 600);
+  engine.base.fillStyle = "#000000";
+  engine.base.fillRect(360, 120, 80, 80);
+  engine.snapshot("nudge-setup");
+});
+await page.waitForTimeout(40);
+box = await canvasBox();
+await setTool("select");
+await dragTo(330, 100, 470, 220); // marquee around the block
+await page.waitForTimeout(60);
+await page.keyboard.press("ArrowRight");
+await page.keyboard.press("ArrowRight");
+for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowDown"); // +2, +10
+await page.keyboard.press("Escape"); // bake the float down
+await page.waitForTimeout(80);
+// The block now spans y 130–209, so the lower band is covered and the upper one
+// (its old top edge) is back to white.
+const nudgedInto = await countPx(0, 370, 202, 60, 6, "dark");
+const nudgedOutOf = await countPx(0, 370, 120, 60, 6, "dark");
+await action("undo");
+await page.waitForTimeout(60);
+const undoneInto = await countPx(0, 370, 202, 60, 6, "dark");
+const undoneOutOf = await countPx(0, 370, 120, 60, 6, "dark");
+step(
+  "arrow keys nudge a selection; the whole run undoes as one move",
+  nudgedInto === 360 && nudgedOutOf === 0 && undoneInto === 0 && undoneOutOf === 360,
+  `moved=(${nudgedInto},${nudgedOutOf}) afterUndo=(${undoneInto},${undoneOutOf})`,
+);
+
+// ── 27. an open dialog swallows the single-key shortcuts ──────────────────
+// The guard matters when focus has left the dialog's fields (clicking its dead
+// padding drops focus to <body>), which is exactly when a bare "b" used to
+// reach the canvas and switch the tool behind the panel.
+await reset();
+await setTool("pencil");
+await action("openResizeDialog");
+await page.waitForTimeout(120);
+const guardBox = await page.locator('div[role="dialog"]').boundingBox();
+await page.mouse.click(guardBox.x + 6, guardBox.y + guardBox.height - 6);
+await page.keyboard.press("b");
+await page.keyboard.press("Delete");
+await page.waitForTimeout(40);
+const behindDialog = await page.evaluate(
+  async () =>
+    (await import("/src/state/store.ts")).usePaintStore.getState().activeToolId,
+);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(80);
+step(
+  "an open dialog swallows the single-key shortcuts",
+  behindDialog === "pencil",
+  `toolBehindDialog=${behindDialog}`,
 );
 
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });

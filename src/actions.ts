@@ -102,6 +102,30 @@ export function deleteSelection(): void {
   if (editableFocused()) return;
   engine.deleteSelection(usePaintStore.getState().color2);
 }
+// Move the selection by whole pixels from the keyboard. Mirrors what a drag
+// does: lift the pixels into a float on the first press (leaving a
+// background-colored hole), then reposition it. The history step is recorded
+// once, when the float is committed on deselect — so a run of arrow presses
+// undoes as a single move, exactly like one drag. The marquee redraws on the
+// selection layer's animation frame, so no explicit repaint is needed.
+//
+// Returns whether the keystroke did something, so the caller only swallows an
+// arrow key that moved a selection and leaves the rest scrolling the canvas.
+export function nudgeSelection(dx: number, dy: number): boolean {
+  if (editableFocused()) return false;
+  const s = usePaintStore.getState();
+  // Only the selection tools own the arrow keys. Nothing else can be holding a
+  // selection anyway — switching tools bakes one down, and paste drops into
+  // Select — but checking the tool keeps that an explicit rule rather than a
+  // consequence of the lifecycle.
+  if (s.activeToolId !== "select" && s.activeToolId !== "freeSelect") return false;
+  if (!engine.hasSelectionOrFloat()) return false;
+  engine.beginFloat(s.color2);
+  const r = engine.selection;
+  if (!r) return false;
+  engine.moveFloatTo(r.x + dx, r.y + dy);
+  return true;
+}
 
 // — App —
 // About is a real OS window, not an in-app panel, so opening it is a Rust call

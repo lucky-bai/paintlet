@@ -27,7 +27,7 @@ Where the app stands today, grouped by state.
 - **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
 - **Colors** — MS Paint palette grid, Color 1 / Color 2 swatches, swap, and a full **color chooser** that opens in a popup: a saturation/value rainbow area, a hue slider, the basic palette, and both hex and RGB (0–255) fields. Left-click a palette chip = Color 1, right-click = Color 2.
 - **Zoom & pan** — shortcuts for in / out / reset / fit (⌘+ / ⌘− / ⌘0 / ⌘9), a status-bar slider + %, pinch or ⌘-wheel zoom centered on the cursor, and space-drag / middle-drag panning. The wheel step is small and smooth (delta normalized and clamped, not a single huge jump). 0.25×–8×, crisp `pixelated` scaling.
-- **Tool shortcuts** — `S W P B F T E I L C R U O G` select the tools; `Esc` cancels the current action / deselects.
+- **Tool shortcuts** — `S P B T E I` select the six tools Windows Paint gives a letter to; arrow keys nudge a selection by a pixel; `Esc` cancels the current action / deselects. Each is repeated in the tooltip of the control it drives, since the ribbon is where a user looks before the menu bar. An open dialog swallows all of them — an unmodified key must never reach the canvas behind a panel.
 - **Status bar** — live cursor coordinates, image dimensions, and the selection's size while one exists.
 - **Guardrails** — File → New/Open confirm before discarding unsaved changes; a pending text edit is committed (never dropped) by Save / New / Open / closing the window; undo cancels an in-progress multi-gesture shape. Per-tool cursors: precise crosshairs for fill/eyedropper, a circle for the brush, a square for the eraser, and the resize cursor while dragging a canvas or selection grip.
 - **Theme** — light by default; Dark and System (which follows the macOS appearance, switching live) are in Settings.
@@ -274,7 +274,7 @@ All tools receive already-mapped canvas coordinates, so no tool contains zoom or
 Windows 11 Paint's layout, wearing macOS. Just window chrome + top toolbar + canvas + status bar — the menus live in the system menu bar, which is the natural Mac arrangement.
 
 ```
-┌─ ● ● ●   Paintlet — untitled.png ──────────────────────────────┐  ← native title bar (traffic lights)
+┌─ ● ● ●   Untitled - Paintlet ──────────────────────────────────┐  ← native title bar (traffic lights)
 ├──────────────────────────────────────────────────────────────────┤
 │ ↩ ↪ │ ✏ 🖌 🪣 A ⌫ 💧 │ ╱ ▭ ○ ⋯ │ Size ▂▃▄▅ │ ■1 ■2  ▪▪▪▪▪▪ ⋯ ＋ │  ← top toolbar (grouped)
 ├──────────────────────────────────────────────────────────────────┤
@@ -395,9 +395,22 @@ Because WebP and HEIC open but can't be written, ⌘S on one can't re-write in p
 ## 9. Keyboard shortcuts (via native menu)
 
 - ⌘, settings · ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as
-- ⌘Z undo · ⇧⌘Z redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all
+- ⌘Z undo · ⇧⌘Z or ⌘Y redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all
 - ⌘+ / ⌘− / ⌘0 zoom in / out / actual size · ⌘9 fit to window
-- `S` select · `W` free-form select · `P` pencil · `B` brush · `E` eraser · `L` line · `C` curve · `R` rect · `U` rounded rect · `O` ellipse · `G` polygon · `F` fill · `T` text · `I` eyedropper · `Esc` cancel current action
+- `S` select (press again to swap marquee ↔ lasso) · `P` pencil · `B` fill · `T` text · `E` eraser · `I` color picker · `Esc` cancel current action
+- ← ↑ → ↓ nudge the selection by one pixel
+
+A nudge is the keyboard half of a drag and shares its machinery: the first arrow press lifts the selection into a float (leaving a background-colored hole), later presses reposition it, and the one history step lands when the float is committed on deselect — so a run of presses undoes as a single move. The arrows are only swallowed when a selection actually moved; otherwise they keep scrolling the work area.
+
+### Matching Windows Paint
+
+The reference is Windows 11 Paint: where it binds a key, Paintlet binds the same one with ⌘ for Ctrl, and where it binds nothing, Paintlet stays bare rather than borrowing a convention from Photoshop or Paint.NET. That rules out a color-swap key, a deselect accelerator (Paint cancels with `Esc`), a coarse-nudge modifier, and `[` / `]` for stroke width — none of which Paint has. `⌘+` / `⌘−` are zoom in both.
+
+Paint's tool letters are undocumented by Microsoft, and the third-party lists that reproduce them are unreliable — they were checked against the running app. Six tools carry one: `S` select, `P` pencil, `B` fill bucket, `T` text, `E` eraser, `I` color picker. The brush and all six shapes have none, so they are mouse-only here too, and `B` is the bucket rather than the brush. Paint's `Z` picks its magnifier, a tool Paintlet has no equivalent for, so `Z` stays unbound rather than being repurposed.
+
+`S` cycles rather than picks, as it does in Paint: pressing it again swaps the rectangular marquee for the lasso and back, which is the lasso's only keyboard route now that `W` is gone. A live selection survives the swap — CanvasStage skips `onDeactivate` when both the old and new tool are selection tools, so only leaving the pair bakes the float down. Anything that needs one mode specifically has to set it outright rather than pressing `S`, since where the cycle lands depends on what was already active.
+
+⌘Y redoes alongside ⇧⌘Z, matching Paint's Ctrl+Y. It's handled in the keydown listener rather than on the menu item, which carries a single accelerator — and ⇧⌘Z is the one worth showing on a Mac.
 
 ---
 

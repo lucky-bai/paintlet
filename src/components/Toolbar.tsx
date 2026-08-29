@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { engine, usePaintStore } from "../state/store";
-import { isImplemented, isShapeTool } from "../tools/registry";
+import { isFreehandTool, isImplemented, isShapeTool } from "../tools/registry";
 import type { ToolId } from "../engine/types";
 import { cx } from "../lib/cx";
 import { Icon, type IconName } from "./Icon";
@@ -8,35 +8,37 @@ import { ToolButton } from "./ToolButton";
 import { ColorControls } from "./ColorControls";
 import { TextOptions } from "./TextOptions";
 
-type ToolDef = { id: ToolId; icon: IconName; label: string; key: string };
+// `key` is the tool's shortcut letter, present only for the tools Windows Paint
+// gives one (see TOOL_KEYS in App.tsx); the rest are mouse-only there and here.
+type ToolDef = {
+  id: ToolId;
+  icon: IconName;
+  label: string;
+  key?: string;
+};
 
 const SELECT_TOOLS: ToolDef[] = [
   { id: "select", icon: "select", label: "Select", key: "S" },
-  { id: "freeSelect", icon: "lasso", label: "Free-form select", key: "W" },
+  { id: "freeSelect", icon: "lasso", label: "Free-form select" },
 ];
 
 // Drawing tools laid out to fill two rows (Win11 Paint's compact Tools group).
 const DRAW_TOOLS: ToolDef[] = [
   { id: "pencil", icon: "pencil", label: "Pencil", key: "P" },
-  { id: "brush", icon: "brush", label: "Brush", key: "B" },
-  { id: "fill", icon: "fill", label: "Fill with color", key: "F" },
+  { id: "brush", icon: "brush", label: "Brush" },
+  { id: "fill", icon: "fill", label: "Fill with color", key: "B" },
   { id: "text", icon: "text", label: "Text", key: "T" },
   { id: "eraser", icon: "eraser", label: "Eraser", key: "E" },
   { id: "eyedropper", icon: "eyedropper", label: "Color picker", key: "I" },
 ];
 
 const SHAPE_TOOLS: ToolDef[] = [
-  { id: "line", icon: "line", label: "Line", key: "L" },
-  { id: "curve", icon: "curve", label: "Curve", key: "C" },
-  { id: "rectangle", icon: "rectangle", label: "Rectangle", key: "R" },
-  {
-    id: "roundedRectangle",
-    icon: "roundedRectangle",
-    label: "Rounded rectangle",
-    key: "U",
-  },
-  { id: "ellipse", icon: "ellipse", label: "Ellipse", key: "O" },
-  { id: "polygon", icon: "polygon", label: "Polygon", key: "G" },
+  { id: "line", icon: "line", label: "Line" },
+  { id: "curve", icon: "curve", label: "Curve" },
+  { id: "rectangle", icon: "rectangle", label: "Rectangle" },
+  { id: "roundedRectangle", icon: "roundedRectangle", label: "Rounded rectangle" },
+  { id: "ellipse", icon: "ellipse", label: "Ellipse" },
+  { id: "polygon", icon: "polygon", label: "Polygon" },
 ];
 
 // Shapes draw at one of a few fixed widths (not the continuous pencil slider).
@@ -69,7 +71,13 @@ function ToolGrid({ tools }: { tools: ToolDef[] }) {
         return (
           <ToolButton
             key={t.id}
-            title={enabled ? `${t.label} (${t.key})` : `${t.label} — coming soon`}
+            title={
+              !enabled
+                ? `${t.label} — coming soon`
+                : t.key
+                  ? `${t.label} (${t.key})`
+                  : t.label
+            }
             active={activeToolId === t.id}
             disabled={!enabled}
             onClick={() => setTool(t.id)}
@@ -155,11 +163,7 @@ function ContextGroup() {
         </Group>
       </>
     );
-  if (
-    activeToolId === "pencil" ||
-    activeToolId === "brush" ||
-    activeToolId === "eraser"
-  )
+  if (isFreehandTool(activeToolId))
     return (
       <>
         <Divider />

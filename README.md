@@ -36,13 +36,14 @@ A **universal** build (Apple Silicon + Intel), signed and notarized by Apple —
 - **Shapes** — line, curve, rectangle, rounded rectangle, ellipse, and polygon at four widths. Shift constrains to 45°/square/circle; the curve is click-based (two clicks to place, two to bend).
 - **Fill & eyedropper** — leak-tight flood fill, plus a color picker that shows the sampled color under the cursor.
 - **Text** — multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough; reposition before committing.
-- **Selection** — rectangular marquee or free-form lasso, with move, eight-grip resize, and transparent backgrounds so a selection never stamps a solid block.
+- **Selection** — rectangular marquee or free-form lasso, with move, eight-grip resize, arrow-key nudging, and transparent backgrounds so a selection never stamps a solid block.
 - **Clipboard** — copy / cut / paste (⌘C/⌘X/⌘V) through the system clipboard.
 - **Save / Open** — opens PNG, JPEG, GIF, WebP, BMP, and HEIC; one-step save as PNG, JPEG, BMP, or GIF, picked from the save panel's format popup. The title bar tracks the file and unsaved changes.
 - **Image ops** — resize, crop, flip, rotate, and drag any canvas edge to crop or extend — all undoable.
 - **Zoom & pan** — 0.25×–8× crisp pixelated scaling, fit-to-window, pinch/⌘-wheel zoom, and space-drag panning.
 - **Undo / redo** — ⌘Z / ⇧⌘Z across every edit, including resizes and crops.
 - **Native macOS UI** — real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
+- **Shortcuts that match Paint** — `S P B T E I` for the six tools Windows Paint gives a letter to (`S` again swaps marquee for lasso), arrows to nudge a selection a pixel at a time, `⌘Y` or `⇧⌘Z` to redo, and `Esc` to cancel. Where Paint binds nothing, neither does Paintlet.
 - **Settings & theme** (⌘,) — Light by default, with Dark and System appearance; persisted across launches.
 
 Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design and architecture.
