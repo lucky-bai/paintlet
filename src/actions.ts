@@ -6,8 +6,6 @@ import { STAGE_PADDING, viewport } from "./state/viewport";
 import { openImage, saveImage } from "./io/fileIO";
 import { copySelection, cutSelection, pasteClipboard } from "./io/clipboard";
 import { clampZoom } from "./lib/zoom";
-import { nextBrushSize, nextShapeSize } from "./lib/sizes";
-import { isFreehandTool, isShapeTool } from "./tools/registry";
 
 // App-level commands, shared by the native menu and the keyboard handlers so a
 // shortcut and its menu item always do the exact same thing. Clipboard/edit
@@ -104,11 +102,6 @@ export function deleteSelection(): void {
   if (editableFocused()) return;
   engine.deleteSelection(usePaintStore.getState().color2);
 }
-export function deselect(): void {
-  if (editableFocused()) return;
-  engine.deselect();
-}
-
 // Move the selection by whole pixels from the keyboard. Mirrors what a drag
 // does: lift the pixels into a float on the first press (leaving a
 // background-colored hole), then reposition it. The history step is recorded
@@ -132,23 +125,6 @@ export function nudgeSelection(dx: number, dy: number): boolean {
   if (!r) return false;
   engine.moveFloatTo(r.x + dx, r.y + dy);
   return true;
-}
-
-// — Tools —
-export function swapColors(): void {
-  if (editableFocused()) return;
-  usePaintStore.getState().swapColors();
-}
-
-// `[` / `]`: step the active tool's stroke width — the discrete ladder for the
-// shape tools, the continuous one for pencil/brush/eraser. Tools with no width
-// (select, lasso, fill, text, eyedropper) ignore it.
-export function stepStrokeSize(dir: 1 | -1): void {
-  if (editableFocused()) return;
-  const s = usePaintStore.getState();
-  if (isShapeTool(s.activeToolId)) s.setShapeSize(nextShapeSize(s.shapeSize, dir));
-  else if (isFreehandTool(s.activeToolId))
-    s.setBrushSize(nextBrushSize(s.brushSize, dir));
 }
 
 // — App —

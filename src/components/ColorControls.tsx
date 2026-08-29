@@ -42,8 +42,8 @@ export function ColorControls() {
         <Swatch which="color2" />
         <button
           type="button"
-          title="Swap colors (X)"
-          aria-label="Swap colors (X)"
+          title="Swap colors"
+          aria-label="Swap colors"
           onClick={swapColors}
           className="flex h-7 w-6 items-center justify-center rounded-md text-ink-muted hover:bg-hover"
         >

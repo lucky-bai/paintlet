@@ -34,18 +34,14 @@ const TOOL_KEYS: Record<string, ToolId> = {
   g: "polygon",
 };
 
-// Arrow key → the direction it nudges a selection, in image pixels.
+// Arrow key → the direction it nudges a selection. One pixel per press, as in
+// Paint; no coarse-step modifier, because Paint has none.
 const NUDGE: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
   ArrowUp: [0, -1],
   ArrowDown: [0, 1],
 };
-
-// How far one arrow press moves a selection. Shift jumps by ten, the usual
-// coarse step, for crossing the canvas without holding the key down.
-const NUDGE_STEP = 1;
-const NUDGE_STEP_COARSE = 10;
 
 function App() {
   const theme = usePaintStore((s) => s.theme);
@@ -87,9 +83,9 @@ function App() {
   // which starts with no data-theme of its own.
   useEffect(() => applyTheme(theme), [theme]);
 
-  // Keyboard: zoom (⌘+/-/0), delete and nudge the selection, stroke width,
-  // color swap, and single-key tool switching. ⌘-combos owned by the native
-  // menu (undo, save, clipboard, …) fall through.
+  // Keyboard: zoom (⌘+/-/0), delete and nudge the selection, and single-key
+  // tool switching. ⌘-combos owned by the native menu (undo, save, clipboard,
+  // …) fall through.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null;
@@ -133,25 +129,16 @@ function App() {
 
       const dir = NUDGE[e.key];
       if (dir) {
-        const step = e.shiftKey ? NUDGE_STEP_COARSE : NUDGE_STEP;
         // Swallowed only when a selection actually moved; with nothing
         // selected the arrows keep scrolling the work area.
-        if (A.nudgeSelection(dir[0] * step, dir[1] * step)) e.preventDefault();
+        if (A.nudgeSelection(dir[0], dir[1])) e.preventDefault();
         return;
       }
 
       if (e.altKey) return; // Option makes these keys type symbols, not commands
 
-      if (e.key === "[" || e.key === "]") {
-        e.preventDefault();
-        A.stepStrokeSize(e.key === "]" ? 1 : -1);
-        return;
-      }
-
-      const key = e.key.toLowerCase();
-      const id = TOOL_KEYS[key];
+      const id = TOOL_KEYS[e.key.toLowerCase()];
       if (id) setTool(id);
-      else if (key === "x") A.swapColors();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

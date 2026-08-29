@@ -672,7 +672,7 @@ await dragTo(330, 100, 470, 220); // marquee around the block
 await page.waitForTimeout(60);
 await page.keyboard.press("ArrowRight");
 await page.keyboard.press("ArrowRight");
-await page.keyboard.press("Shift+ArrowDown"); // +2, +10 in total
+for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowDown"); // +2, +10
 await page.keyboard.press("Escape"); // bake the float down
 await page.waitForTimeout(80);
 // The block now spans y 130–209, so the lower band is covered and the upper one
@@ -689,67 +689,29 @@ step(
   `moved=(${nudgedInto},${nudgedOutOf}) afterUndo=(${undoneInto},${undoneOutOf})`,
 );
 
-// ── 27. [ and ] step the active tool's stroke width ───────────────────────
-const sizes = () =>
-  page.evaluate(async () => {
-    const s = (await import("/src/state/store.ts")).usePaintStore.getState();
-    return { brush: s.brushSize, shape: s.shapeSize, tool: s.activeToolId };
-  });
-await reset();
-await setTool("brush");
-await setBrushSize(4);
-await page.keyboard.press("BracketRight");
-await page.keyboard.press("BracketRight");
-await page.keyboard.press("BracketLeft");
-const brushStepped = (await sizes()).brush; // 4 → 5 → 6 → 5
-await setTool("rectangle");
-await setShapeSize(1);
-await page.keyboard.press("BracketRight");
-const shapeStepped = (await sizes()).shape; // 1 → 3, the next discrete rung
-await setTool("fill"); // no stroke width: the keys must do nothing
-await page.keyboard.press("BracketRight");
-const afterWidthless = await sizes();
-step(
-  "[ and ] step the active tool's width",
-  brushStepped === 5 &&
-    shapeStepped === 3 &&
-    afterWidthless.brush === 5 &&
-    afterWidthless.shape === 3,
-  `brush=${brushStepped} shape=${shapeStepped} widthless=${JSON.stringify(afterWidthless)}`,
-);
-
-// ── 28. X swaps the colors; an open dialog swallows the single-key shortcuts ─
+// ── 27. an open dialog swallows the single-key shortcuts ──────────────────
 // The guard matters when focus has left the dialog's fields (clicking its dead
 // padding drops focus to <body>), which is exactly when a bare "b" used to
 // reach the canvas and switch the tool behind the panel.
-await setColor1("#ed1c24");
-await page.keyboard.press("x");
-await page.waitForTimeout(40);
-const swapped = await page.evaluate(async () => {
-  const s = (await import("/src/state/store.ts")).usePaintStore.getState();
-  return { c1: s.color1, c2: s.color2 };
-});
+await reset();
 await setTool("pencil");
 await action("openResizeDialog");
 await page.waitForTimeout(120);
 const guardBox = await page.locator('div[role="dialog"]').boundingBox();
 await page.mouse.click(guardBox.x + 6, guardBox.y + guardBox.height - 6);
 await page.keyboard.press("b");
-await page.keyboard.press("x");
+await page.keyboard.press("Delete");
 await page.waitForTimeout(40);
-const behindDialog = await page.evaluate(async () => {
-  const s = (await import("/src/state/store.ts")).usePaintStore.getState();
-  return { tool: s.activeToolId, c1: s.color1 };
-});
+const behindDialog = await page.evaluate(
+  async () =>
+    (await import("/src/state/store.ts")).usePaintStore.getState().activeToolId,
+);
 await page.keyboard.press("Escape");
 await page.waitForTimeout(80);
 step(
-  "X swaps colors; an open dialog swallows the single-key shortcuts",
-  swapped.c1 === "#ffffff" &&
-    swapped.c2 === "#ed1c24" &&
-    behindDialog.tool === "pencil" &&
-    behindDialog.c1 === swapped.c1,
-  `swapped=${JSON.stringify(swapped)} behindDialog=${JSON.stringify(behindDialog)}`,
+  "an open dialog swallows the single-key shortcuts",
+  behindDialog === "pencil",
+  `toolBehindDialog=${behindDialog}`,
 );
 
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });

@@ -3,7 +3,6 @@ import { engine, usePaintStore } from "../state/store";
 import { isFreehandTool, isImplemented, isShapeTool } from "../tools/registry";
 import type { ToolId } from "../engine/types";
 import { cx } from "../lib/cx";
-import { BRUSH_MAX, BRUSH_MIN, SHAPE_SIZES } from "../lib/sizes";
 import { Icon, type IconName } from "./Icon";
 import { ToolButton } from "./ToolButton";
 import { ColorControls } from "./ColorControls";
@@ -19,7 +18,7 @@ type ToolDef = {
   hint?: string;
 };
 
-const SELECT_HINT = "arrow keys nudge, ⇧ for 10px, ⌘D deselects";
+const SELECT_HINT = "arrow keys nudge it a pixel";
 
 const SELECT_TOOLS: ToolDef[] = [
   { id: "select", icon: "select", label: "Select", key: "S", hint: SELECT_HINT },
@@ -56,9 +55,8 @@ const SHAPE_TOOLS: ToolDef[] = [
   { id: "polygon", icon: "polygon", label: "Polygon", key: "G" },
 ];
 
-// Shown on every stroke-width control, so the shortcut is discoverable from
-// the one place a user goes to change the width by hand.
-const SIZE_HINT = "[ and ] resize";
+// Shapes draw at one of a few fixed widths (not the continuous pencil slider).
+const SHAPE_SIZES = [1, 3, 5, 8];
 
 // A labeled ribbon group: content on top, a small caption underneath — the
 // Win11 Paint layout the user asked to get closer to.
@@ -115,13 +113,13 @@ function SizeSlider() {
     <div className="flex items-center gap-2 px-1">
       <input
         type="range"
-        min={BRUSH_MIN}
-        max={BRUSH_MAX}
+        min={1}
+        max={64}
         step={1}
         value={brushSize}
         onChange={(e) => setBrushSize(Number(e.target.value))}
         className="w-28 accent-[var(--vp-accent)]"
-        title={`${brushSize}px — ${SIZE_HINT}`}
+        title={`${brushSize}px`}
       />
       <span className="w-8 text-right text-xs tabular-nums text-ink-muted">
         {brushSize}px
@@ -140,7 +138,7 @@ function ShapeSizePicker() {
         <button
           key={n}
           type="button"
-          title={`${n}px — ${SIZE_HINT}`}
+          title={`${n}px`}
           onClick={() => setShapeSize(n)}
           className={cx(
             "h-7 w-8 rounded-md text-xs tabular-nums",

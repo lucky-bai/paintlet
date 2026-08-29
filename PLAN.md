@@ -23,11 +23,11 @@ Where the app stands today, grouped by state.
 - **Copy / Cut / Paste** — ⌘C / ⌘X / ⌘V through the system clipboard as an image, with an in-app fallback; paste drops in a floating selection ready to drag.
 - **Save / Open** — Opens PNG, JPEG, GIF, WebP, BMP, and HEIC. Save is one step: an already-saved file re-writes in place, and a new document opens the native save panel directly — no extra in-app dialog. The panel carries a **format popup** — PNG / JPEG / Windows BMP / GIF, like Paint's "Save as type" — which picks the encoder by rewriting the filename's extension; typing an extension works too. Defaults to PNG, and JPEG encodes at 0.92. WebP and HEIC open but can't be written, so ⌘S on one goes to the save panel instead of overwriting it. Window title + dirty-dot track the current file; the close button / ⌘W confirm before discarding unsaved changes.
 - **Image ops** — Resize (by pixels or percentage, aspect-locked by default, unlock to stretch; always resamples smoothly, as Paint does), Crop to selection, Flip Horizontal / Vertical, Rotate 90° right / left / 180°, and edge/corner drag handles on the canvas that crop or extend it (white fill, dashed preview). All undoable across the size change.
-- **Native macOS menu bar** — File / Edit / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All, Deselect (⌘D). The image operations live under Edit (no separate Image menu). The system's auto-inserted Edit items are gone: Dictation / Emoji & Symbols via their NSUserDefaults switches at startup, Writing Tools / AutoFill stripped from the installed menu (they have no switch). The app menu is About Paintlet + Quit (Hide / Hide Others / Show All removed); About shows the version, a link to the GitHub repo, and the MIT license line.
+- **Native macOS menu bar** — File / Edit / View with real ⌘-shortcuts: New (⌘N), Open (⌘O), Save (⌘S), Save As (⇧⌘S), Undo/Redo, Cut/Copy/Paste, Select All. The image operations live under Edit (no separate Image menu). The system's auto-inserted Edit items are gone: Dictation / Emoji & Symbols via their NSUserDefaults switches at startup, Writing Tools / AutoFill stripped from the installed menu (they have no switch). The app menu is About Paintlet + Quit (Hide / Hide Others / Show All removed); About shows the version, a link to the GitHub repo, and the MIT license line.
 - **Undo / redo** — ⌘Z / ⇧⌘Z and toolbar buttons; snapshot history (30 steps) that tracks dimensions so it spans resize/crop; buttons grey out when unavailable.
 - **Colors** — MS Paint palette grid, Color 1 / Color 2 swatches, swap, and a full **color chooser** that opens in a popup: a saturation/value rainbow area, a hue slider, the basic palette, and both hex and RGB (0–255) fields. Left-click a palette chip = Color 1, right-click = Color 2.
 - **Zoom & pan** — shortcuts for in / out / reset / fit (⌘+ / ⌘− / ⌘0 / ⌘9), a status-bar slider + %, pinch or ⌘-wheel zoom centered on the cursor, and space-drag / middle-drag panning. The wheel step is small and smooth (delta normalized and clamped, not a single huge jump). 0.25×–8×, crisp `pixelated` scaling.
-- **Tool shortcuts** — `S W P B F T E I L C R U O G` select the tools; `[` / `]` step the active tool's stroke width; `X` swaps Color 1 and Color 2; arrow keys nudge a selection by a pixel (⇧ for 10); `Esc` cancels the current action / deselects. Every one of them is repeated in the tooltip of the control it drives, since the ribbon is where a user looks before the menu bar. An open dialog swallows all of them — an unmodified key must never reach the canvas behind a panel.
+- **Tool shortcuts** — `S W P B F T E I L C R U O G` select the tools; arrow keys nudge a selection by a pixel; `Esc` cancels the current action / deselects. Each is repeated in the tooltip of the control it drives, since the ribbon is where a user looks before the menu bar. An open dialog swallows all of them — an unmodified key must never reach the canvas behind a panel.
 - **Status bar** — live cursor coordinates, image dimensions, and the selection's size while one exists.
 - **Guardrails** — File → New/Open confirm before discarding unsaved changes; a pending text edit is committed (never dropped) by Save / New / Open / closing the window; undo cancels an in-progress multi-gesture shape. Per-tool cursors: precise crosshairs for fill/eyedropper, a circle for the brush, a square for the eraser, and the resize cursor while dragging a canvas or selection grip.
 - **Theme** — light by default; Dark and System (which follows the macOS appearance, switching live) are in Settings.
@@ -159,7 +159,7 @@ paintlet/
 │  │  ├─ formats.ts               # readable/writable formats + encoder table
 │  │  ├─ fileIO.ts                # open/save via Tauri
 │  │  └─ clipboard.ts             # system clipboard with in-app fallback
-│  ├─ lib/                        # cx, zoom bounds, stroke-width ladders, SVG cursors, palette, theme
+│  ├─ lib/                        # cx, zoom bounds, SVG cursors, palette, theme
 │  └─ styles/index.css            # tailwind + theme tokens (light/dark)
 ├─ tests/e2e.mjs                  # headless-browser smoke test
 ├─ .github/workflows/ci.yml       # build → unit tests → e2e on every PR
@@ -395,14 +395,20 @@ Because WebP and HEIC open but can't be written, ⌘S on one can't re-write in p
 ## 9. Keyboard shortcuts (via native menu)
 
 - ⌘, settings · ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as
-- ⌘Z undo · ⇧⌘Z redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all · ⌘D deselect
+- ⌘Z undo · ⇧⌘Z redo · ⌘X/⌘C/⌘V cut/copy/paste · ⌘A select all
 - ⌘+ / ⌘− / ⌘0 zoom in / out / actual size · ⌘9 fit to window
 - `S` select · `W` free-form select · `P` pencil · `B` brush · `E` eraser · `L` line · `C` curve · `R` rect · `U` rounded rect · `O` ellipse · `G` polygon · `F` fill · `T` text · `I` eyedropper · `Esc` cancel current action
-- `[` / `]` thinner / thicker stroke · `X` swap Color 1 and Color 2 · ← ↑ → ↓ nudge the selection 1px (⇧ 10px)
+- ← ↑ → ↓ nudge the selection by one pixel
 
 A nudge is the keyboard half of a drag and shares its machinery: the first arrow press lifts the selection into a float (leaving a background-colored hole), later presses reposition it, and the one history step lands when the float is committed on deselect — so a run of presses undoes as a single move. The arrows are only swallowed when a selection actually moved; otherwise they keep scrolling the work area.
 
-The `[` / `]` widths walk a shared ladder (`src/lib/sizes.ts`): the shape tools' four fixed rungs, or the freehand ladder that steps a pixel at a time while a stroke is thin and coarsens as it grows, so 1–64px is crossable in a couple of dozen presses. The slider can still land between rungs; a press from there moves to the next rung past the current width.
+### Matching Windows Paint
+
+The reference is Windows 11 Paint: where it binds a key, Paintlet binds the same one with ⌘ for Ctrl, and where it binds nothing, Paintlet stays bare rather than borrowing a convention from Photoshop or Paint.NET. That rules out a color-swap key, a deselect accelerator (Paint cancels with `Esc`), a coarse-nudge modifier, and `[` / `]` for stroke width — none of which Paint has.
+
+Zoom is the deliberate exception. Paint puts stroke width on `Ctrl+` / `Ctrl−` and zoom on `Ctrl+PgUp` / `Ctrl+PgDn`; a Mac keyboard has no PgUp/PgDn, so faithfully copying that would bury the app's most-used view command behind `⌘Fn↑`. Zoom keeps `⌘+` / `⌘−` (and `⌘0` / `⌘9`), which costs stroke width its shortcut — an acceptable trade, since the ribbon's slider is one click away and zoom is not.
+
+Paint's own tool letters are undocumented by Microsoft and differ from Paintlet's in places (`B` is its fill bucket, not a brush; `S` toggles between rectangular and lasso select rather than pairing with `W`). Reconciling them is open work.
 
 ---
 
