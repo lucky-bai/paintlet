@@ -95,6 +95,13 @@ jobs:
           # Generated per run and never persisted: nothing outlives the runner,
           # so there is nothing to be gained from making this a secret.
           KEYCHAIN_PW="$(openssl rand -base64 24)"
+          # Anything put in GITHUB_ENV is echoed in the env block of every later
+          # step's log, and on a public repository those logs are world-readable.
+          # The password protects a keychain that exists only on this runner and
+          # is deleted before the job ends, so the exposure is inert — but a
+          # credential should not be printed regardless. Masking replaces it
+          # with *** everywhere Actions writes it.
+          echo "::add-mask::$KEYCHAIN_PW"
           echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
           echo "KEYCHAIN_PW=$KEYCHAIN_PW" >> "$GITHUB_ENV"
 
