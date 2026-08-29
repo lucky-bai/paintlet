@@ -13,10 +13,11 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Build and notarize, but publish nothing (leaves the DMG as a run artifact)"
-        type: boolean
-        default: true
+      mode:
+        description: "dry-run builds and notarizes without publishing anything"
+        type: choice
+        options: [dry-run, publish]
+        default: dry-run
       version:
         description: "Explicit version, e.g. 0.4.0. Leave blank to bump the patch component."
         type: string
@@ -24,7 +25,8 @@ on:
 
 # A second release starting while one is in flight would race on the version
 # bump and could push two tags for the same commit. One at a time, and never
-# cancel one partway: an interrupted run can leave main bumped but unreleased.
+# cancel one partway: an interrupted run can leave the branch bumped but
+# unreleased.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -36,45 +38,11 @@ jobs:
       contents: write # push the version bump; create the release and its tag
 
     steps:
-      # A dispatch from the Actions UI delivers `dry_run` as a real boolean, but
-      # the REST API and `gh workflow run` deliver the *string* "false" — which
-      # is truthy in an Actions expression, so `if: ${{ !inputs.dry_run }}` would
-      # publish on a run that asked not to. Normalise it once, here, and let
-      # every later step read this output instead of the raw input.
-      #
-      # Anything that is not exactly "false" resolves to a dry run: the
-      # ambiguous case must be the harmless one.
-      - name: Resolve the run mode
-        id: cfg
-        env:
-          DRY_RUN_RAW: ${{ inputs.dry_run }}
-        run: |
-          set -euo pipefail
-          if [[ "$DRY_RUN_RAW" == "false" ]]; then
-            echo "dry_run=false" >> "$GITHUB_OUTPUT"
-            echo "Mode: PUBLISH" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "dry_run=true" >> "$GITHUB_OUTPUT"
-            echo "Mode: dry run — nothing will be published" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
       # Full history and tags: bump-version.sh refuses to reuse a version that
       # already has a tag, which it cannot check against a shallow clone.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      # A real release may only come from main. The repo squash-merges, so a tag
-      # cut from a feature branch points at a commit that vanishes from history
-      # when the PR lands — v0.1.1 is already tagged at such a commit. A dry run
-      # from any branch is fine; it publishes nothing.
-      - name: Refuse to publish from a branch
-        if: steps.cfg.outputs.dry_run == 'false'
-        run: |
-          [[ "$GITHUB_REF_NAME" == "main" ]] || {
-            echo "::error::Publishing is only allowed from main (this is ${GITHUB_REF_NAME}). Re-run with dry_run to test from a branch."
-            exit 1
-          }
 
       - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
 
@@ -173,14 +141,13 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "### Paintlet $VERSION" >> "$GITHUB_STEP_SUMMARY"
 
-      # Pushed before the build, not after, so the tag release.sh creates lands
-      # on a commit that is actually on main. The cost of that ordering is that a
-      # build failure leaves main bumped with nothing released — which burns a
-      # version number and nothing else, since the next run bumps again from
-      # there. The reverse ordering would risk a published tag pointing at a
-      # commit no one can check out, which is not as cheap to undo.
-      - name: Commit the bump to main
-        if: steps.cfg.outputs.dry_run == 'false'
+      # Pushed before the build, so the tag release.sh creates points at a commit
+      # that exists on the branch rather than at an uncommitted working tree. A
+      # build failure then leaves the branch bumped with nothing released, which
+      # costs a version number and nothing else — the next run bumps again from
+      # there.
+      - name: Commit the bump
+        if: inputs.mode == 'publish'
         env:
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
@@ -188,7 +155,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Release v$VERSION"
-          git push origin HEAD:main
+          git push origin "HEAD:$GITHUB_REF_NAME"
 
       # The long one: universal build, sign, notarize (2–10 min inside Apple),
       # staple, Gatekeeper check, and — unless this is a dry run — the GitHub
@@ -196,7 +163,7 @@ jobs:
       # on a laptop; the workflow's whole job is to hand it credentials.
       - name: Build, sign, notarize, publish
         env:
-          PUBLISH: ${{ steps.cfg.outputs.dry_run == 'false' && '1' || '0' }}
+          PUBLISH: ${{ inputs.mode == 'publish' && '1' || '0' }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           GH_TOKEN: ${{ github.token }}
@@ -224,10 +191,10 @@ jobs:
       - name: Summary
         if: success()
         env:
-          DRY_RUN: ${{ steps.cfg.outputs.dry_run }}
+          MODE: ${{ inputs.mode }}
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
-          if [[ "$DRY_RUN" == "true" ]]; then
+          if [[ "$MODE" != "publish" ]]; then
             echo "Dry run — nothing was published. The notarized DMG is attached to this run." >> "$GITHUB_STEP_SUMMARY"
             echo "The version bump was applied to the working tree only, not committed." >> "$GITHUB_STEP_SUMMARY"
           else

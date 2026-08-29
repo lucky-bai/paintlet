@@ -174,12 +174,10 @@ Then mount it, drag Paintlet to Applications, and launch — there should be no 
 
 **Actions → Release → Run workflow**, with two inputs:
 
-- **`dry_run`** (default **true**) — build, sign, notarize, and attach the DMG to the run, but publish nothing and commit nothing. The version bump is applied to the working tree and thrown away with the runner.
+- **`mode`** — `dry-run` (the default) builds, signs, notarizes, and attaches the DMG to the run without publishing or committing anything; the version bump is applied to the working tree and thrown away with the runner. `publish` does the whole thing.
 - **`version`** — leave blank to bump the patch component; set it explicitly for a minor or major release.
 
-A dry run works from any branch and is the way to exercise the pipeline before trusting it. **A real release is refused from anywhere but `main`**: this repo squash-merges, so a tag cut from a feature branch points at a commit that disappears when the PR lands. That is not hypothetical — `v0.1.1` is tagged at `1757c22`, the pre-squash tip of `bai/draggable-dialogs-about-window`, which is not in `main`'s history.
-
-A real run pushes a `Release vX.Y.Z` commit to `main` *before* building, so the tag lands on a commit that is genuinely on the branch. The cost of that ordering is that a build failure leaves `main` bumped with nothing released — which burns a version number and nothing else, since the next run bumps again from there.
+Both modes run from any branch. A publish pushes its `Release vX.Y.Z` commit to whichever branch it ran from, and tags that exact commit, so the tag always names what is inside the DMG. A build failure leaves the branch bumped with nothing released, which costs a version number and nothing else — the next run bumps again from there.
 
 ### Required secrets
 

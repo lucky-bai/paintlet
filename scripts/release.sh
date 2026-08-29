@@ -154,7 +154,12 @@ if [[ "$PUBLISH" == "1" ]]; then
   if gh release view "$TAG" >/dev/null 2>&1; then
     gh release upload "$TAG" "$RELEASE_DMG" --clobber
   else
-    gh release create "$TAG" "$RELEASE_DMG" --title "$APP_NAME $VERSION" --generate-notes
+    # --target pins the tag to the commit that was actually built. Without it
+    # gh creates the tag at the default branch's HEAD, so releasing from any
+    # other branch — or from a main that moved during the build — would tag
+    # something other than what is inside the DMG.
+    gh release create "$TAG" "$RELEASE_DMG" --title "$APP_NAME $VERSION" \
+      --target "$(git rev-parse HEAD)" --generate-notes
   fi
   ok "Release $TAG published"
 fi
