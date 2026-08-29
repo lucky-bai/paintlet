@@ -2,9 +2,14 @@
 
 How to cut a distributable macOS build: a **universal** (Apple Silicon + Intel) `.dmg` that is code-signed with a Developer ID, notarized by Apple, and stapled, so it opens on any Mac (macOS 10.15+) with no Gatekeeper warning. Distribution is via GitHub Releases.
 
-Most of this is automated by [`scripts/release.sh`](../scripts/release.sh). The one-time setup below has to happen first.
+There are two ways to cut one:
 
-Shipping to the **Mac App Store** is a separate track with different certificates, mandatory sandboxing, and no notarization step — see [`RELEASING-MAS.md`](RELEASING-MAS.md). The two can ship from the same commit and neither affects the other.
+- **[The Release workflow](#6-releasing-from-github-actions)** — a manual button in the Actions tab that bumps the version, builds, notarizes, and publishes. This is the normal path.
+- **[`scripts/release.sh`](../scripts/release.sh)** on your own Mac, which is what the workflow runs and remains the fallback when Actions is unavailable or you want the DMG without publishing.
+
+The one-time setup below is a prerequisite for the local path, and its certificate and notary credentials are the same material the workflow needs as secrets.
+
+Shipping to the **Mac App Store** is a separate track with different certificates, mandatory sandboxing, and no notarization step — see [`RELEASING-MAS.md`](RELEASING-MAS.md). The same workflow drives both, from the same commit, and either can be run without the other.
 
 ## 1. One-time setup
 
@@ -70,11 +75,17 @@ The release script also adds these if missing.
 
 ### Bump the version
 
-Set the same SemVer version in all three files:
+The version is recorded in four places — `src-tauri/tauri.conf.json`, `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock` — and nothing keeps them in sync. `release.sh` reads only `tauri.conf.json`, so a hand bump that misses one produces a DMG named for one version containing a binary that reports another, with no error anywhere. Use the script:
 
-- `src-tauri/tauri.conf.json` → `"version"`
-- `package.json` → `"version"`
-- `src-tauri/Cargo.toml` → `version`
+```bash
+scripts/bump-version.sh           # bump the patch component
+scripts/bump-version.sh 0.4.0     # or set an explicit version
+DRY_RUN=1 scripts/bump-version.sh # print the next version, change nothing
+```
+
+It refuses to run if the files disagree or if the target version already has a tag, and verifies every file afterwards.
+
+**The version is an odometer, not a SemVer triple.** Every component stays a single digit and carries at ten: `0.1.9` → `0.2.0`, and `0.9.9` → `1.0.0`. Passing a version explicitly still skips anywhere, which is how a release jumps ahead of the count.
 
 Then commit and push:
 
@@ -122,7 +133,7 @@ Older versions are still individually reachable, because the tag lives in the UR
 In order, exiting on the first failure:
 
 1. Auto-detects the Developer ID Application identity from the keychain (nothing hardcoded).
-2. Confirms the `paintlet-notary` profile exists.
+2. Resolves notary credentials and confirms they authenticate — the `paintlet-notary` keychain profile, or an App Store Connect API key if `NOTARY_KEY`, `NOTARY_KEY_ID` and `NOTARY_ISSUER` are all set. A CI runner has no login keychain to have stored a profile in, which is why the second form exists.
 3. Adds the universal Rust targets if missing.
 4. `pnpm tauri build --target universal-apple-darwin` — Tauri signs the app with the hardened runtime using that identity.
 5. `codesign --verify` on the built `.app`.
@@ -155,12 +166,57 @@ Then mount it, drag Paintlet to Applications, and launch — there should be no 
 - **Gatekeeper blocks the app copied out of the DMG** — the DMG is stapled and the app is notarized, so it validates online on first launch; stapling the DMG is the standard for DMG distribution.
 - **"failed to bundle project: failed to run xattr"** — a `pyenv`/`conda` shim is shadowing the system `xattr` with the Python `xattr` package, which lacks the `-r` flag Tauri's bundler needs. The release script prepends `/usr/bin` to `PATH` to force `/usr/bin/xattr`; if you build with a bare `pnpm tauri build`, prefix it the same way: `PATH="/usr/bin:$PATH" pnpm tauri build …`.
 
-## 6. CI (optional, later)
+## 6. Releasing from GitHub Actions
 
-`tauri-apps/tauri-action` can build, sign, and notarize on tag push. It needs these repo secrets:
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) ships **both** distribution tracks from one button in the **Actions** tab: the notarized DMG described above, and the sandboxed App Store package described in [`RELEASING-MAS.md`](RELEASING-MAS.md). It runs `scripts/bump-version.sh`, `scripts/release.sh` and `scripts/release-mas.sh` unchanged — the workflow's only job is to hand them credentials, so the local and CI paths cannot drift apart.
 
-- `APPLE_CERTIFICATE` — base64 of the `.p12` (`base64 -i Certificates.p12 | pbcopy`)
-- `APPLE_CERTIFICATE_PASSWORD` — the `.p12` export password
-- `APPLE_SIGNING_IDENTITY` — `Developer ID Application: Bai Li (TEAMID)`
-- `APPLE_ID`, `APPLE_PASSWORD` (app-specific), `APPLE_TEAM_ID`
-- `KEYCHAIN_PASSWORD` — any string, for the temporary CI keychain
+### Running it
+
+**Actions → Release → Run workflow**, with three inputs:
+
+- **`mode`** — `dry-run` (the default) builds, signs, notarizes, packages and validates without publishing, uploading or committing anything; the version bump is applied to the working tree and thrown away with the runner, and both artifacts are attached to the run. `publish` does the whole thing.
+- **`tracks`** — `both` by default. `github-only` skips the store; `app-store-only` skips the DMG and, importantly, **reuses the committed version instead of bumping**, which is what makes it the right way to retry a failed upload.
+- **`version`** — leave blank to bump the patch component; set it explicitly for a minor or major release.
+
+A publish takes roughly an hour end to end: two universal builds, notarization, and then up to half an hour waiting on Apple to process the uploaded build before it can be submitted.
+
+### Which branch to run from
+
+**Publish from `main`.** A publish pushes its `Release vX.Y.Z` commit to whichever branch it ran from and tags that exact commit, so the tag always names what is inside the DMG.
+
+Run it from a feature branch and that stops being tidy: the tag points at the branch commit, and a later squash-merge creates a *different* commit on main, so the released commit is never an ancestor of main and survives only because the tag holds it. The DMG also goes public before the code is on main. Nothing breaks, but `git describe` stops telling the truth.
+
+`dry-run` is safe from any branch — it commits and publishes nothing.
+
+A build failure leaves the branch bumped with nothing released, which costs a version number and nothing else: the next run bumps again from there.
+
+### Who commits
+
+The bump commit is authored and committed by `github-actions[bot]`, pushed with the built-in `GITHUB_TOKEN`, and unsigned. Commits pushed with that token deliberately do not trigger other workflows, so the `Release vX.Y.Z` commit gets no CI run of its own — harmless, since the same job runs the typecheck, build and unit tests immediately beforehand.
+
+### Required secrets
+
+| Secret | What it is |
+| --- | --- |
+| `APPLE_CERTIFICATE_P12_BASE64` | The Developer ID Application `.p12`, base64-encoded: `base64 -i Certificates.p12 \| pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | The export password, shared by all three `.p12` files |
+| `APPLE_DISTRIBUTION_P12_BASE64` | The Apple Distribution `.p12` — signs the App Store `.app` |
+| `APPLE_INSTALLER_P12_BASE64` | The Mac Installer Distribution `.p12` — signs the `.pkg` |
+| `MAS_PROVISIONING_PROFILE_BASE64` | The Mac App Store provisioning profile, base64-encoded |
+| `NOTARY_API_KEY_BASE64` | The App Store Connect `AuthKey_<KEYID>.p8`, base64-encoded |
+| `NOTARY_API_KEY_ID` | The key ID (the `<KEYID>` in that filename) |
+| `NOTARY_API_ISSUER` | The issuer UUID from App Store Connect |
+
+One App Store Connect API key covers everything: notarization needs no particular role beyond access to the team, and the same key creates versions and submits for review. It is staged into `private_keys/` inside the workspace, which is where `altool` and `scripts/asc.mjs` both look by convention, and passed to `notarytool` by path.
+
+There is no `KEYCHAIN_PASSWORD` secret: the workflow generates a random one per run for a throwaway keychain that it deletes on the way out, so nothing about it needs to outlive the job.
+
+The provisioning profile is the only credential with an expiry date — **2027-08-11**. The workflow checks it before building and fails immediately if it has lapsed, warning a month ahead.
+
+### What it does not do
+
+Edit the store listing. Screenshots, description, keywords and pricing carry forward from the previous version untouched; the automation writes only the "What's New" text. Apple also reviews every version, updates included, and there is no way around that — see [`RELEASING-MAS.md`](RELEASING-MAS.md) §7.
+
+### A note on whose credentials these are
+
+The certificate and the API key belong to Elaine's Apple Developer account (§1). Storing them as Actions secrets on a **public** repository is safe from fork pull requests — GitHub withholds secrets from those, provided no workflow here ever uses `pull_request_target` — but anyone who can push a branch to this repo can read them out through a workflow. Today that is one person. It is still her signing identity, so treat adding these secrets as a decision to make with her rather than a configuration step.
