@@ -14,24 +14,20 @@ import { ResizeDialog } from "./components/dialogs/ResizeDialog";
 import { SettingsDialog } from "./components/dialogs/SettingsDialog";
 import { applyTheme } from "./lib/theme";
 
-// Single-key tool shortcuts (no modifier). These live in a keydown handler
-// rather than the menu because single-key menu accelerators would hijack every
-// keystroke in the text editor.
+// Single-key tool shortcuts (no modifier), exactly the set Windows Paint binds
+// and nothing more: no brush key, no shape keys, and `B` is the fill bucket
+// rather than the brush. Paint's `Z` picks its magnifier, a tool Paintlet has
+// no equivalent for, so `Z` stays unbound.
+//
+// These live in a keydown handler rather than the menu because single-key menu
+// accelerators would hijack every keystroke in the text editor.
 const TOOL_KEYS: Record<string, ToolId> = {
   s: "select",
-  w: "freeSelect",
   p: "pencil",
-  b: "brush",
-  f: "fill",
+  b: "fill",
   t: "text",
   e: "eraser",
   i: "eyedropper",
-  l: "line",
-  c: "curve",
-  r: "rectangle",
-  u: "roundedRectangle",
-  o: "ellipse",
-  g: "polygon",
 };
 
 // Arrow key → the direction it nudges a selection. One pixel per press, as in

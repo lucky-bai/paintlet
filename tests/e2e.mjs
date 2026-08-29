@@ -84,6 +84,14 @@ const storeState = () =>
   });
 const setZoom = (z) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setZoom(v), z);
+// Only six tools carry a shortcut in Paint (s/p/b/t/e/i); every other one is
+// reached through the store, as is any tool switch that must survive focus
+// being left in a prior field.
+const setTool = (id) =>
+  page.evaluate(
+    async (t) => (await import("/src/state/store.ts")).usePaintStore.getState().setTool(t),
+    id,
+  );
 // Shape width is one of the discrete 1/3/5/8 presets — set it through the store.
 const setShapeSize = (n) =>
   page.evaluate(async (v) => (await import("/src/state/store.ts")).usePaintStore.getState().setShapeSize(v), n);
@@ -103,7 +111,7 @@ const dragTo = async (x1, y1, x2, y2) => {
 };
 
 // ── 1. 1px rectangle commits exactly 1px thick, then fills with no halo ───
-await page.keyboard.press("r");
+await setTool("rectangle");
 await setShapeSize(1);
 await dragTo(100, 100, 300, 200);
 const edgeRows = await page.evaluate(() => {
@@ -122,7 +130,7 @@ step(
   `dark rows at x=150: [${edgeRows}]`,
 );
 
-await page.keyboard.press("f");
+await page.keyboard.press("b"); // Paint's bucket key
 await clickAt(200, 150);
 const filled = await countPx(0, 150, 140, 20, 20, "dark");
 const halo = await countPx(0, 95, 95, 40, 15, "gray");
@@ -176,12 +184,12 @@ step(
 await reset(); // leave a clean white canvas for the tests below
 
 // ── 5. polygon: multi-click, close on first vertex, Esc cancels a new one ─
-await page.keyboard.press("g");
+await setTool("polygon");
 await dragTo(400, 100, 500, 100);
 await clickAt(500, 180);
 await clickAt(400, 100); // close
 const polyEdge = await countPx(0, 430, 96, 40, 8, "dark");
-await page.keyboard.press("g");
+await setTool("polygon");
 await dragTo(600, 100, 700, 100);
 await page.keyboard.press("Escape");
 const cancelled = await countPx(1, 580, 80, 140, 40, "alpha");
@@ -192,7 +200,7 @@ step(
 );
 
 // ── 6. lasso: trace, ants follow the outline, move leaves a shaped hole ───
-await page.keyboard.press("w");
+await setTool("freeSelect");
 const cx = 450, cy = 133, r = 60;
 await page.mouse.move(...at(cx + r, cy));
 await page.mouse.down();
@@ -221,7 +229,7 @@ step(
 // ── 6b. the selection survives switching between marquee and lasso ────────
 await page.keyboard.press("s");
 await dragTo(700, 100, 780, 160);
-await page.keyboard.press("w"); // marquee → lasso must NOT bake it down
+await setTool("freeSelect"); // marquee → lasso must NOT bake it down
 await page.waitForTimeout(150);
 const keptReadout = await page.getByText("⬚").count();
 const keptAnts = await countPx(2, 700, 98, 80, 6, "alpha");
@@ -311,12 +319,12 @@ box = await canvasBox();
 await reset();
 const setColor1 = (hex) =>
   page.evaluate(async (h) => (await import("/src/state/store.ts")).usePaintStore.getState().setColor1(h), hex);
-await page.keyboard.press("o");
+await setTool("ellipse");
 await setShapeSize(1);
 await dragTo(200, 150, 600, 450);
 await page.waitForTimeout(30);
 await setColor1("#ed1c24");
-await page.keyboard.press("f");
+await setTool("fill");
 await clickAt(400, 300);
 await page.waitForTimeout(30);
 const ovalInside = await page.evaluate(() => {
@@ -413,11 +421,6 @@ const setBrushSize = (n) =>
 // getComputedStyle, but the inline style still carries the real url(...) string.
 const overlayCursor = () =>
   page.locator("canvas").nth(1).evaluate((el) => el.style.cursor);
-const setTool = (id) =>
-  page.evaluate(
-    async (t) => (await import("/src/state/store.ts")).usePaintStore.getState().setTool(t),
-    id,
-  );
 await setTool("brush"); // via store: robust to focus left in a prior field
 await setBrushSize(4);
 await page.waitForTimeout(30);
@@ -443,7 +446,7 @@ await page.keyboard.press("Escape");
 step("move cursor shows inside a selection", insideCur === "move", `cursor=${insideCur}`);
 
 // ── 16. status bar surfaces a per-tool usage hint (curve) ─────────────────
-await page.keyboard.press("c");
+await setTool("curve");
 await page.waitForTimeout(30);
 const curveHint = await page.getByText(/click twice to bend/i).count();
 await page.keyboard.press("p");
@@ -460,7 +463,7 @@ await setZoom(1);
 await page.waitForTimeout(30);
 box = await canvasBox();
 await setColor1("#000000");
-await page.keyboard.press("c");
+await setTool("curve");
 await setShapeSize(3);
 await clickAt(200, 300); // start
 await page.waitForTimeout(20);
