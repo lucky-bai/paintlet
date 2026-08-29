@@ -8,7 +8,10 @@ import { Logo } from "./Logo";
 export function TitleBar() {
   const filePath = usePaintStore((s) => s.filePath);
   const isDirty = usePaintStore((s) => s.isDirty);
-  const name = filePath ? filePath.split("/").pop() : "untitled.png";
+  // Document first, app second, joined by a plain hyphen — the order and
+  // punctuation both Windows Paint and the macOS convention use. An unsaved
+  // document is "Untitled", with no extension, since it has no file yet.
+  const name = filePath ? filePath.split("/").pop() : "Untitled";
 
   return (
     <div
@@ -17,7 +20,8 @@ export function TitleBar() {
     >
       <Logo size={15} />
       <span data-tauri-drag-region>
-        {isDirty ? "• " : ""}Paintlet — {name}
+        {isDirty ? "• " : ""}
+        {name} - Paintlet
       </span>
     </div>
   );

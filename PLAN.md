@@ -274,7 +274,7 @@ All tools receive already-mapped canvas coordinates, so no tool contains zoom or
 Windows 11 Paint's layout, wearing macOS. Just window chrome + top toolbar + canvas + status bar — the menus live in the system menu bar, which is the natural Mac arrangement.
 
 ```
-┌─ ● ● ●   Paintlet — untitled.png ──────────────────────────────┐  ← native title bar (traffic lights)
+┌─ ● ● ●   Untitled - Paintlet ──────────────────────────────────┐  ← native title bar (traffic lights)
 ├──────────────────────────────────────────────────────────────────┤
 │ ↩ ↪ │ ✏ 🖌 🪣 A ⌫ 💧 │ ╱ ▭ ○ ⋯ │ Size ▂▃▄▅ │ ■1 ■2  ▪▪▪▪▪▪ ⋯ ＋ │  ← top toolbar (grouped)
 ├──────────────────────────────────────────────────────────────────┤
