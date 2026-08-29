@@ -107,6 +107,7 @@ jobs:
 
           # find-identity only searches the keychains on the search list, so the
           # new one has to join it — prepended, keeping the existing entries.
+          # shellcheck disable=SC2046 # deliberate word splitting: one argument per keychain
           security list-keychains -d user -s "$KEYCHAIN" \
             $(security list-keychains -d user | tr -d '"')
 
