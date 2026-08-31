@@ -188,7 +188,7 @@ Enforcement is not perfectly consistent, so treat the description mention as low
 ### Required assets and answers
 
 - **Screenshots** at exactly 1280×800, 1440×900, 2560×1600, or 2880×1800 — all 16:10. The landing page captures in `site/assets/` are 2496×1886 and 2600×1892, roughly 4:3, so they will be refused and cannot simply be scaled. Re-capture with the window at 1440×900 on a Retina display for a 2880×1800 result.
-- **Privacy policy URL:** <https://lucky-bai.github.io/paintlet/privacy.html> — required even for a free app that collects nothing.
+- **Privacy policy URL:** <https://paintlet.app/privacy.html> — required even for a free app that collects nothing.
 - **App Privacy questionnaire:** "Data Not Collected" across the board. Accurate, and the fastest path through review.
 - **Age rating:** no objectionable content in any category.
 - **Price:** Free.

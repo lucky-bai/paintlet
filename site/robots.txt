@@ -1,0 +1,9 @@
+# Everything here is meant to be indexed — two public pages and their images.
+# The point of this file is the Sitemap line: crawlers read robots.txt from the
+# domain root, so this is how they discover the sitemap without a Search Console
+# submission.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://paintlet.app/sitemap.xml

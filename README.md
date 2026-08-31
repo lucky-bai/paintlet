@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://lucky-bai.github.io/paintlet/"><strong>Website</strong></a>
+  <a href="https://paintlet.app/"><strong>Website</strong></a>
   ·
   <a href="https://github.com/lucky-bai/paintlet/releases/latest"><strong>Download</strong></a>
 </p>
