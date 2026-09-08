@@ -16,9 +16,9 @@
   <a href="https://github.com/lucky-bai/paintlet/releases/latest"><strong>Download</strong></a>
 </p>
 
-A MS Paint-style raster editor for macOS. It borrows **Windows 11 Paint's layout and interactions** and renders them in **macOS clothing** — native transparent title bar, SF Pro, system controls, and full dark mode. A Windows Paint user should recognize it in five seconds and still feel it belongs on their Mac.
+A MS Paint-style raster editor for macOS. It borrows Windows 11 Paint's layout and interactions, then dresses them in macOS: transparent native title bar, SF Pro, system controls, full dark mode. If you know Windows Paint, the tools sit where you'd expect them to.
 
-Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The name is *paint* plus the diminutive *-let* — a small, light paint app.
+Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The name is *paint* plus the diminutive *-let*: a small paint app.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="Paintlet editing a drawing of a pig on a hillside, showing the grouped ribbon, color palette, canvas, and status bar" width="820" />
@@ -28,32 +28,32 @@ Built with an HTML `<canvas>` drawing engine inside a Tauri native shell. The na
 
 [**Download the latest Paintlet for macOS →**](https://github.com/lucky-bai/paintlet/releases/latest)
 
-A **universal** build (Apple Silicon + Intel), signed and notarized by Apple — no Gatekeeper warning. Open the `.dmg` and drag **Paintlet** into your Applications folder. Requires macOS 10.15 or later.
+A universal build (Apple Silicon + Intel), signed and notarized by Apple, so there's no Gatekeeper warning. Open the `.dmg` and drag Paintlet into your Applications folder. Requires macOS 10.15 or later.
 
 ## Features
 
-- **Freehand** — pencil, brush, and eraser with a continuous width slider; left button paints Color 1, right paints Color 2.
-- **Shapes** — line, curve, rectangle, rounded rectangle, ellipse, and polygon at four widths. Shift constrains to 45°/square/circle; the curve is click-based (two clicks to place, two to bend).
-- **Fill & eyedropper** — leak-tight flood fill, plus a color picker that shows the sampled color under the cursor.
-- **Text** — multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough; reposition before committing.
-- **Selection** — rectangular marquee or free-form lasso, with move, eight-grip resize, arrow-key nudging, and transparent backgrounds so a selection never stamps a solid block.
-- **Clipboard** — copy / cut / paste (⌘C/⌘X/⌘V) through the system clipboard.
-- **Save / Open** — opens PNG, JPEG, GIF, WebP, BMP, and HEIC; one-step save as PNG, JPEG, BMP, or GIF, picked from the save panel's format popup. The title bar tracks the file and unsaved changes.
-- **Image ops** — resize, crop, flip, rotate, and drag any canvas edge to crop or extend — all undoable.
-- **Zoom & pan** — 0.25×–8× crisp pixelated scaling, fit-to-window, pinch/⌘-wheel zoom, and space-drag panning.
-- **Undo / redo** — ⌘Z / ⇧⌘Z across every edit, including resizes and crops.
-- **Native macOS UI** — real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
-- **Shortcuts that match Paint** — `S P B T E I` for the six tools Windows Paint gives a letter to (`S` again swaps marquee for lasso), arrows to nudge a selection a pixel at a time, `⌘Y` or `⇧⌘Z` to redo, and `Esc` to cancel. Where Paint binds nothing, neither does Paintlet.
-- **Settings & theme** (⌘,) — Light by default, with Dark and System appearance; persisted across launches.
+- **Freehand.** Pencil, brush, and eraser on a continuous width slider. The left button paints Color 1, the right paints Color 2.
+- **Shapes:** line, curve, rectangle, rounded rectangle, ellipse, and polygon at four widths. Shift constrains to 45°/square/circle. The curve is click-based (two clicks to place, two to bend).
+- Leak-tight **flood fill**, plus an **eyedropper** that shows the sampled color under the cursor.
+- **Text** is multi-line, with a live font preview, size steppers, and bold/italic/underline/strikethrough. Reposition the box before you commit it.
+- **Selection:** rectangular marquee or free-form lasso, with move, eight-grip resize, and arrow-key nudging. Backgrounds stay transparent, so a selection won't stamp a solid block.
+- Copy, cut, and paste (⌘C/⌘X/⌘V) go through the system **clipboard**.
+- **Save / Open.** Opens PNG, JPEG, GIF, WebP, BMP, and HEIC. Saving is one step: PNG, JPEG, BMP, or GIF, picked from the save panel's format popup. The title bar tracks the file and unsaved changes.
+- **Image ops:** resize, crop, flip, and rotate, all undoable. Dragging any canvas edge crops or extends it.
+- **Zoom & pan.** 0.25×–8× crisp pixelated scaling, fit-to-window, pinch or ⌘-wheel zoom, and space-drag panning.
+- **Undo / redo** with ⌘Z / ⇧⌘Z across every edit, resizes and crops included.
+- **Native macOS UI:** a real menu bar and shortcuts, a Win11-style ribbon, an in-app color picker, the MS Paint palette, and a live status bar.
+- **Shortcuts that match Paint.** `S P B T E I` for the six tools Windows Paint gives a letter to (`S` again swaps marquee for lasso), arrows to nudge a selection a pixel at a time, `⌘Y` or `⇧⌘Z` to redo, `Esc` to cancel. Paintlet doesn't invent bindings for keys Paint leaves free.
+- **Settings & theme** (⌘,): Light by default, with Dark and System appearance, persisted across launches.
 
 Out of scope by design: layers, transparency/alpha, AI features, stickers, and advanced brushes. See [`PLAN.md`](./PLAN.md) for the full design and architecture.
 
 ## Tech stack
 
-- **Shell:** Tauri v2 (Rust) — native window, menus, file dialogs, app bundle.
+- **Shell:** Tauri v2 (Rust) for the native window, menus, file dialogs, and app bundle.
 - **Frontend:** Vite + React 19 + TypeScript.
 - **Styling:** Tailwind v4 (CSS-first) with light/dark theme tokens.
-- **State:** Zustand for UI/config; pixel data lives in an imperative canvas engine, never in React.
+- **State:** Zustand for UI/config. Pixel data lives in an imperative canvas engine, outside React.
 
 ## Getting started
 
@@ -83,11 +83,11 @@ CI (GitHub Actions) runs build → unit tests → e2e on every pull request, plu
 
 Three stacked canvases drive everything:
 
-1. **Base** — the committed image, the source of truth, saved to disk.
-2. **Overlay** — transparent; live previews render here and clear constantly.
-3. **Selection** — the marching-ants marquee (rect or lasso outline) and any floating (moved/pasted) pixels, composited into the base on commit.
+1. **Base** is the committed image, the source of truth, saved to disk.
+2. **Overlay** is transparent; live previews render here and clear constantly.
+3. **Selection** carries the marching-ants marquee (rect or lasso outline) and any floating (moved/pasted) pixels, composited into the base on commit.
 
-Every action previews on the overlay, then on pointer-up composites into the base and pushes a history snapshot. Because everything ends as pixels, undo, selection, and text all reduce to the same commit mechanism. Tools implement one shared `Tool` interface, so adding a tool is a single file.
+Every action previews on the overlay, then composites into the base on pointer-up and pushes a history snapshot. Everything ends as pixels, so undo, selection, and text share one commit path. Tools implement a single `Tool` interface, which keeps a new tool down to one file.
 
 ```
 src/
