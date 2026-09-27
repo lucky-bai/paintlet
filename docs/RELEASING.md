@@ -172,11 +172,12 @@ Then mount it, drag Paintlet to Applications, and launch — there should be no 
 
 ### Running it
 
-**Actions → Release → Run workflow**, with three inputs:
+**Actions → Release → Run workflow**, with four inputs:
 
 - **`mode`** — `dry-run` (the default) builds, signs, notarizes, packages and validates without publishing, uploading or committing anything; the version bump is applied to the working tree and thrown away with the runner, and both artifacts are attached to the run. `publish` does the whole thing.
 - **`tracks`** — `both` by default. `github-only` skips the store; `app-store-only` skips the DMG and, importantly, **reuses the committed version instead of bumping**, which is what makes it the right way to retry a failed upload.
 - **`version`** — leave blank to bump the patch component; set it explicitly for a minor or major release.
+- **`notes`** — the App Store "What's New" text. Leave blank and it lists the commit subjects since the previous tag, which read as developer changelog rather than user-facing notes. The browser form takes a single line; for bullets on separate lines, dispatch with `gh workflow run release.yml -f notes="$(cat notes.txt)"`. The GitHub release keeps its own generated notes either way.
 
 A publish takes roughly an hour end to end: two universal builds, notarization, and then up to half an hour waiting on Apple to process the uploaded build before it can be submitted.
 

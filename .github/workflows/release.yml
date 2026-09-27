@@ -30,6 +30,10 @@ on:
         description: "Explicit version, e.g. 0.4.0. Leave blank to bump the patch component."
         type: string
         default: ""
+      notes:
+        description: "App Store \"What's New\" text. Leave blank to list the commit subjects since the previous tag."
+        type: string
+        default: ""
 
 # A second release starting while one is in flight would race on the version
 # bump and could push two tags for the same commit. One at a time, and never
@@ -349,7 +353,18 @@ jobs:
           BUILD_NUMBER: ${{ steps.build.outputs.build }}
           APPLE_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
-        run: scripts/release-mas.sh
+          RELEASE_NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          # release-mas.sh reads the "What's New" text from NOTES_FILE and falls
+          # back to commit subjects, which describe changes to developers rather
+          # than to users. Written to a file here, never interpolated into the
+          # script, for the same reason as the version input above.
+          if [[ -n "$RELEASE_NOTES" ]]; then
+            export NOTES_FILE="$RUNNER_TEMP/release-notes.txt"
+            printf '%s\n' "$RELEASE_NOTES" > "$NOTES_FILE"
+          fi
+          scripts/release-mas.sh
 
       - name: Stash the App Store package
         if: always() && inputs.tracks != 'github-only'
