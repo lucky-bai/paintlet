@@ -9,7 +9,7 @@
       "files": {
         "embedded.provisionprofile": "./Paintlet_MAS.provisionprofile"
       },
-      "bundleVersion": "2"
+      "bundleVersion": "3"
     }
   }
 }

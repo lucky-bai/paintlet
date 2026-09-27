@@ -1,6 +1,6 @@
 [package]
 name = "paintlet"
-version = "0.1.3"
+version = "0.1.4"
 description = "MS Paint-style raster image editor for macOS"
 authors = ["Bai Li"]
 license = "MIT"
