@@ -12,7 +12,31 @@ import {
   type Encoding,
 } from "./formats";
 
-// File → Open. Decode the chosen image and replace the whole document.
+// Decode the image at `path` and replace the whole document. Assumes any
+// unsaved-changes confirmation has already been answered — callers that may
+// clobber work (File → Open, a system-initiated open) ask first, via the
+// shared confirmDiscard in actions.ts.
+//
+// The bytes go through our Rust command (returns an ArrayBuffer) so the user
+// can open from anywhere without fs-scope restrictions.
+export async function loadImageFromPath(path: string): Promise<void> {
+  const bytes = new Uint8Array(
+    await invoke<ArrayBuffer>("read_image_file", { path }),
+  );
+  // ImageIO decodes a truncated AVIF or HEIC as a correctly sized, fully
+  // transparent bitmap instead of failing, which would silently replace the
+  // drawing. Throwing here leaves the document untouched.
+  if (ISO_BMFF_EXTS.includes(extOf(path)) && !isCompleteIsoBmff(bytes)) {
+    throw new Error(`Incomplete image file: ${path}`);
+  }
+  const bitmap = await createImageBitmap(new Blob([bytes]));
+  engine.loadBitmap(bitmap);
+  bitmap.close();
+
+  usePaintStore.getState().setFilePath(path);
+}
+
+// File → Open: ask for a path, then load it.
 export async function openImage(): Promise<void> {
   const selected = await open({
     multiple: false,
@@ -21,22 +45,7 @@ export async function openImage(): Promise<void> {
   });
   if (typeof selected !== "string") return;
 
-  // Read the bytes through our Rust command (returns an ArrayBuffer) so the
-  // user can open from anywhere without fs-scope restrictions.
-  const bytes = new Uint8Array(
-    await invoke<ArrayBuffer>("read_image_file", { path: selected }),
-  );
-  // ImageIO decodes a truncated AVIF or HEIC as a correctly sized, fully
-  // transparent bitmap instead of failing, which would silently replace the
-  // drawing. Throwing here leaves the document untouched.
-  if (ISO_BMFF_EXTS.includes(extOf(selected)) && !isCompleteIsoBmff(bytes)) {
-    throw new Error(`Incomplete image file: ${selected}`);
-  }
-  const bitmap = await createImageBitmap(new Blob([bytes]));
-  engine.loadBitmap(bitmap);
-  bitmap.close();
-
-  usePaintStore.getState().setFilePath(selected);
+  await loadImageFromPath(selected);
 }
 
 // File → Save / Save As. An already-saved file re-writes in place with no

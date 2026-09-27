@@ -1,7 +1,57 @@
+use std::sync::Mutex;
 use tauri::ipc::Response;
-use tauri::Manager;
+use tauri::{Emitter, Manager, RunEvent};
 
 mod save_panel;
+
+// Documents macOS asks us to open (Finder double-click, Open With), arriving
+// as RunEvent::Opened. The event can fire before the webview has loaded enough
+// to listen for Tauri events — that is every cold-start launch-by-double-click
+// — so requests that early are buffered here and replayed when the frontend
+// calls webview_ready. Once the frontend is listening, requests go straight
+// through. The buffering means an open is never delivered twice: each request
+// is either buffered-and-replayed or emitted directly, never both.
+struct OpenQueue {
+    frontend_ready: bool,
+    pending: Vec<String>,
+}
+
+impl OpenQueue {
+    fn new() -> Self {
+        Self {
+            frontend_ready: false,
+            pending: Vec::new(),
+        }
+    }
+
+    // What to do with a fresh open request: Some(paths) means "emit now",
+    // None means "buffered for the ready handshake".
+    fn enqueue(&mut self, paths: Vec<String>) -> Option<Vec<String>> {
+        if self.frontend_ready {
+            Some(paths)
+        } else {
+            self.pending.extend(paths);
+            None
+        }
+    }
+
+    // Mark the frontend as listening and return anything buffered so far.
+    fn mark_frontend_ready(&mut self) -> Option<Vec<String>> {
+        self.frontend_ready = true;
+        (!self.pending.is_empty()).then(|| std::mem::take(&mut self.pending))
+    }
+}
+
+// The frontend's readiness handshake, called right after it installs its
+// document-open listener — see App.tsx. Emits any opens that arrived during
+// webview load, so a file double-clicked before the UI existed still opens.
+#[tauri::command]
+fn webview_ready(app: tauri::AppHandle, queue: tauri::State<Mutex<OpenQueue>>) {
+    let flush = queue.lock().unwrap().mark_frontend_ready();
+    if let Some(paths) = flush {
+        let _ = app.emit("document-open", paths);
+    }
+}
 
 // Open (or re-focus) the About window.
 //
@@ -206,13 +256,67 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(Mutex::new(OpenQueue::new()))
         .invoke_handler(tauri::generate_handler![
             read_image_file,
             write_image_file,
             save_image_dialog,
             strip_edit_menu_system_items,
-            open_about_window
+            open_about_window,
+            webview_ready
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        // The run callback (rather than Builder::run) is what makes Finder
+        // opens reachable: RunEvent::Opened only surfaces here.
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Opened { urls } = event {
+                // LaunchServices hands over file URLs; anything else (there
+                // shouldn't be any) can't be read off disk, so drop it.
+                let paths: Vec<String> = urls
+                    .iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .collect();
+                if paths.is_empty() {
+                    return;
+                }
+                let flush = app
+                    .state::<Mutex<OpenQueue>>()
+                    .lock()
+                    .unwrap()
+                    .enqueue(paths);
+                if let Some(paths) = flush {
+                    let _ = app.emit("document-open", paths);
+                }
+            }
+        });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OpenQueue;
+
+    #[test]
+    fn open_before_the_frontend_is_ready_is_buffered_then_replayed_once() {
+        let mut queue = OpenQueue::new();
+        assert_eq!(queue.enqueue(vec!["a".into()]), None);
+        assert_eq!(queue.enqueue(vec!["b".into(), "c".into()]), None);
+        assert_eq!(
+            queue.mark_frontend_ready(),
+            Some(vec!["a".into(), "b".into(), "c".into()])
+        );
+        // The replay is one-shot: a second handshake has nothing to flush.
+        assert_eq!(queue.mark_frontend_ready(), None);
+    }
+
+    #[test]
+    fn open_after_the_frontend_is_ready_is_delivered_directly() {
+        let mut queue = OpenQueue::new();
+        queue.mark_frontend_ready();
+        assert_eq!(queue.enqueue(vec!["a".into()]), Some(vec!["a".into()]));
+        // And nothing lingers in the buffer for a later replay.
+        assert_eq!(queue.mark_frontend_ready(), None);
+    }
 }

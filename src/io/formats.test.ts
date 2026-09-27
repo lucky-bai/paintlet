@@ -8,6 +8,7 @@ import {
   canEncode,
   encodingFor,
   extOf,
+  firstOpenablePath,
   isCompleteIsoBmff,
 } from "./formats";
 
@@ -82,6 +83,35 @@ describe("save panel format popup", () => {
 
   it("exposes the identifiers in the same order", () => {
     expect(SAVE_UTIS).toEqual(SAVE_FORMATS.map((f) => f.uti));
+  });
+});
+
+describe("system-initiated opens", () => {
+  // Finder may hand over several paths (multi-select + Open With). The
+  // single-document policy takes the first *openable* one: skipping nothing
+  // would mean an unsupported file ahead of a supported one silently wins.
+  it("picks the first openable path, skipping anything else in the request", () => {
+    expect(
+      firstOpenablePath(["/a/notes.txt", "/a/sketch.png", "/a/photo.jpg"]),
+    ).toBe("/a/sketch.png");
+    expect(firstOpenablePath(["/a/notes.txt", "/a/notes.rtf"])).toBeNull();
+  });
+
+  it("matches extensions case-insensitively, like the Open dialog", () => {
+    expect(firstOpenablePath(["/a/IMG_0001.HEIC"])).toBe("/a/IMG_0001.HEIC");
+    expect(firstOpenablePath(["/a/drawing.Png"])).toBe("/a/drawing.Png");
+  });
+
+  it("accepts every format the Open dialog offers", () => {
+    // The dialog filter and the Finder path must agree — a format one accepts
+    // and the other doesn't would make two Open buttons with different reach.
+    for (const ext of OPEN_EXTS) {
+      expect(firstOpenablePath([`/a/b.${ext}`])).toBe(`/a/b.${ext}`);
+    }
+  });
+
+  it("ignores extension-less paths", () => {
+    expect(firstOpenablePath(["/a/README"])).toBeNull();
   });
 });
 

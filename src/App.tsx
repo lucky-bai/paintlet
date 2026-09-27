@@ -5,6 +5,8 @@ import type { ToolId } from "./engine/types";
 import { installAppMenu } from "./menu/appMenu";
 import * as A from "./actions";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { TitleBar } from "./components/TitleBar";
 import { Toolbar } from "./components/Toolbar";
@@ -76,6 +78,26 @@ function App() {
       })
       .then((u) => (unlisten = u))
       .catch((err) => console.error("Failed to install close guard:", err));
+    return () => unlisten?.();
+  }, []);
+
+  // Files macOS hands us (Finder double-click, Open With). The listener is
+  // installed before the webview_ready handshake, so any opens Rust buffered
+  // while this webview was still loading are replayed to a listener that
+  // exists — nothing delivered during launch is lost. Only this window
+  // listens; the About window has no document to replace.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string[]>("document-open", (e) => void A.openFromSystem(e.payload))
+      .then((u) => {
+        unlisten = u;
+        invoke("webview_ready").catch((err) =>
+          console.error("Failed to report webview readiness:", err),
+        );
+      })
+      .catch((err) =>
+        console.error("Failed to listen for document opens:", err),
+      );
     return () => unlisten?.();
   }, []);
 

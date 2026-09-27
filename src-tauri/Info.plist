@@ -9,7 +9,7 @@
   Only add keys Tauri has no opinion about.
 
   This applies to BOTH builds — the Developer ID DMG and the App Store package.
-  The one key below is harmless outside the App Store.
+  Every key below is harmless outside the App Store.
 -->
 <plist version="1.0">
 <dict>
@@ -23,5 +23,109 @@
     -->
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
+
+    <!--
+      Document types Paintlet can open, so Finder lists it under Open With and
+      double-clicking "Open With → Paintlet" actually hands the file over
+      (matching src/io/formats.ts OPEN_EXTS — WebKit's ImageIO-backed decoders,
+      minus TIFF, which a Paint clone is better off not claiming).
+
+      Identifiers reference the system UTIs; nothing is redeclared here. One
+      entry per family, as in Preview's own plist. LSHandlerRank is "Alternate"
+      on every entry on purpose: Paintlet appears in the Open With menu but is
+      never chosen for a file it didn't explicitly claim — Preview and Photos
+      keep their defaults, and adopting a format is the user's decision, made
+      in Finder's Get Info panel.
+    -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>PNG image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.png</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>JPEG image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.jpeg</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>GIF image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.compuserve.gif</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>WebP image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>org.webmproject.webp</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>BMP image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.microsoft.bmp</string>
+            </array>
+        </dict>
+        <dict>
+            <!-- One entry for the HEIF family: HEIC is the Apple-flavored
+              variant (multi-image + HEVC), public.heif the plain container. -->
+            <key>CFBundleTypeName</key>
+            <string>HEIF image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.heic</string>
+                <string>public.heif</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>AVIF image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.avif</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

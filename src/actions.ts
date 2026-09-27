@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { DEFAULT_CANVAS_SIZE, engine, usePaintStore } from "./state/store";
 import { stageHooks } from "./state/stageHooks";
 import { STAGE_PADDING, viewport } from "./state/viewport";
-import { openImage, saveImage } from "./io/fileIO";
+import { loadImageFromPath, openImage, saveImage } from "./io/fileIO";
+import { firstOpenablePath } from "./io/formats";
 import { copySelection, cutSelection, pasteClipboard } from "./io/clipboard";
 import { clampZoom } from "./lib/zoom";
 
@@ -26,29 +27,42 @@ function editableFocused(): boolean {
 // — File —
 // Every entry point that exports or replaces the document commits a pending
 // text edit first — typed-but-unplaced text must never be silently dropped.
+
+// Every command that replaces the current document (New, Open, a Finder open)
+// asks through this — one prompt, one wording, everywhere.
+async function confirmDiscard(title: string): Promise<boolean> {
+  if (!usePaintStore.getState().isDirty) return true;
+  return ask("Discard the current drawing?", { title, kind: "warning" });
+}
+
 export async function newDocument(): Promise<void> {
   stageHooks.flushTextEdit?.();
-  if (usePaintStore.getState().isDirty) {
-    const ok = await ask("Discard the current drawing?", {
-      title: "New Image",
-      kind: "warning",
-    });
-    if (!ok) return;
-  }
+  if (!(await confirmDiscard("New Image"))) return;
   engine.newDocument(DEFAULT_CANVAS_SIZE.w, DEFAULT_CANVAS_SIZE.h);
   usePaintStore.getState().setFilePath(null);
 }
 
 export async function openFile(): Promise<void> {
   stageHooks.flushTextEdit?.();
-  if (usePaintStore.getState().isDirty) {
-    const ok = await ask("Discard the current drawing?", {
-      title: "Open Image",
-      kind: "warning",
-    });
-    if (!ok) return;
-  }
+  if (!(await confirmDiscard("Open Image"))) return;
   void openImage();
+}
+
+// A document macOS handed us: Finder double-click or Open With, arriving as a
+// list of paths over the document-open event (and replayed from the Rust-side
+// buffer when they arrived before the webview could listen).
+//
+// Single-document policy: the first openable path wins and the rest of the
+// request is ignored — the same behavior as the dialog's multiple: false, and
+// one document per request is all a window with no tabs can show. A file that
+// fails to load leaves the document untouched, as it does from File → Open.
+export async function openFromSystem(paths: string[]): Promise<void> {
+  const path = firstOpenablePath(paths);
+  if (!path) return;
+
+  stageHooks.flushTextEdit?.();
+  if (!(await confirmDiscard("Open Image"))) return;
+  await loadImageFromPath(path);
 }
 export function saveFile(): void {
   stageHooks.flushTextEdit?.();

@@ -23,6 +23,16 @@ export const OPEN_EXTS = [
   "avif",
 ];
 
+// The first path macOS handed us (Finder double-click, Open With) that
+// Paintlet can decode, or null when the request holds nothing openable. The
+// extension is the same decodability proxy the Open dialog filter uses — the
+// webview decides decodability either way. Single-document policy picks one
+// path per request; see openFromSystem. extOf() lowercases, so matching is
+// case-insensitive, like the Open dialog's filter.
+export function firstOpenablePath(paths: string[]): string | null {
+  return paths.find((p) => OPEN_EXTS.includes(extOf(p))) ?? null;
+}
+
 export interface Encoding {
   type: string;
   quality?: number;
