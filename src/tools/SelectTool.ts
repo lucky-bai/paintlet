@@ -58,6 +58,7 @@ export class SelectTool implements Tool {
       const end = p.shiftKey ? constrainSquare(this.start, p.point) : p.point;
       ctx.engine.setMarquee(normalizeRect(this.start, end));
     } else if (this.mode === "move") {
+      if (p.shiftKey) ctx.engine.stampFloat();
       ctx.engine.moveFloatTo(
         this.originX + (p.point.x - this.start.x),
         this.originY + (p.point.y - this.start.y),

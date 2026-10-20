@@ -41,6 +41,11 @@ export class History {
     return this.index < this.stack.length - 1;
   }
 
+  current(): ImageData | null {
+    if (this.index < 0 || this.index >= this.stack.length) return null;
+    return this.stack[this.index];
+  }
+
   undo(): ImageData | null {
     if (!this.canUndo()) return null;
     this.index -= 1;

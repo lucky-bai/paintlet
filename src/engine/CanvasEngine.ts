@@ -141,7 +141,7 @@ export class CanvasEngine {
 
   private emit(): void {
     this.onChange?.({
-      canUndo: this.history.canUndo(),
+      canUndo: this.history.canUndo() || this.floatCanvas != null,
       canRedo: this.history.canRedo(),
       isDirty: this.dirty,
       width: this.width,
@@ -242,6 +242,13 @@ export class CanvasEngine {
   }
 
   undo(): void {
+    if (this.floatCanvas) {
+      const snap = this.history.current();
+      if (snap) {
+        this.applySnapshot(snap);
+        return;
+      }
+    }
     const snap = this.history.undo();
     if (snap) this.applySnapshot(snap);
   }
@@ -589,6 +596,14 @@ export class CanvasEngine {
     this.base.restore();
     this.dirty = true;
     this.emit();
+  }
+
+  // Stamp a copy of the floating content onto the base without discarding the float
+  // (Windows Paint Shift-move trail / smear effect).
+  stampFloat(): void {
+    if (!this.floatCanvas) return;
+    this.base.drawImage(this.floatDisplay ?? this.floatCanvas, this.floatX, this.floatY);
+    this.dirty = true;
   }
 
   // Reposition the floating content (drag-move). The marquee follows it.

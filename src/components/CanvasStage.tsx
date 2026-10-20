@@ -110,6 +110,10 @@ export function CanvasStage() {
     sx: number;
     sy: number;
   } | null>(null);
+  const canvasResizeAnchor = useRef<{
+    dir: HandleId;
+    oldRect: DOMRect;
+  } | null>(null);
   // Cursor to force on the whole work area while a canvas-resize handle is being
   // dragged (pointer capture otherwise reverts it to the tool cursor once the
   // pointer leaves the little grip).
@@ -368,19 +372,45 @@ export function CanvasStage() {
     };
   }, []);
 
-  // After a zoom-at-cursor renders, scroll so the anchored image point is back
-  // under the pointer. Layout effect: must run before the frame paints.
+  // After a zoom-at-cursor or canvas resize renders, scroll so the anchored
+  // image point or opposite edge stays put. Layout effect: must run before the frame paints.
   useLayoutEffect(() => {
     const a = zoomAnchor.current;
-    if (!a) return;
-    zoomAnchor.current = null;
+    const cra = canvasResizeAnchor.current;
     const el = containerRef.current;
     const overlay = overlayRef.current;
     if (!el || !overlay) return;
-    const rect = overlay.getBoundingClientRect();
-    el.scrollLeft += rect.left + a.ix * zoom - a.clientX;
-    el.scrollTop += rect.top + a.iy * zoom - a.clientY;
-  }, [zoom]);
+
+    if (cra) {
+      canvasResizeAnchor.current = null;
+      const newRect = overlay.getBoundingClientRect();
+      const { dir, oldRect } = cra;
+
+      // Pin opposite edge:
+      if (!dir.includes("w")) {
+        // Dragged east/right -> keep west/left edge fixed on screen
+        el.scrollLeft += Math.round(newRect.left - oldRect.left);
+      } else {
+        // Dragged west/left -> keep east/right edge fixed on screen
+        el.scrollLeft += Math.round(newRect.right - oldRect.right);
+      }
+
+      if (!dir.includes("n")) {
+        // Dragged south/down -> keep north/top edge fixed on screen
+        el.scrollTop += Math.round(newRect.top - oldRect.top);
+      } else {
+        // Dragged north/up -> keep south/bottom edge fixed on screen
+        el.scrollTop += Math.round(newRect.bottom - oldRect.bottom);
+      }
+    }
+
+    if (a) {
+      zoomAnchor.current = null;
+      const rect = overlay.getBoundingClientRect();
+      el.scrollLeft += rect.left + a.ix * zoom - a.clientX;
+      el.scrollTop += rect.top + a.iy * zoom - a.clientY;
+    }
+  }, [w, h, zoom]);
 
   // Track the spacebar for space-drag panning (ignored while typing in a
   // field). Window blur releases it so a ⌘Tab away can't wedge pan mode on.
@@ -498,11 +528,20 @@ export function CanvasStage() {
     if (!d) return;
     e.stopPropagation();
     const t = resizeTarget(e);
+    const { dir } = d;
     resizeDrag.current = null;
     setResizePreview(null);
     setCanvasResizeCursor(null);
-    if (t.w !== d.startW || t.h !== d.startH || t.x !== 0 || t.y !== 0)
+    if (t.w !== d.startW || t.h !== d.startH || t.x !== 0 || t.y !== 0) {
+      const overlay = overlayRef.current;
+      if (overlay) {
+        canvasResizeAnchor.current = {
+          dir,
+          oldRect: overlay.getBoundingClientRect(),
+        };
+      }
       engine.setCanvasSizeAnchored(t.w, t.h, -t.x, -t.y);
+    }
   };
 
   // Esc cancels an in-progress stroke/shape (including a multi-click polygon

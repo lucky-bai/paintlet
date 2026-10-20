@@ -21,10 +21,14 @@ describe("History", () => {
     h.push(b);
     h.push(c);
     expect(h.undo()).toBe(b);
+    expect(h.current()).toBe(b);
     expect(h.undo()).toBe(a);
+    expect(h.current()).toBe(a);
     expect(h.canUndo()).toBe(false); // snapshot #0 is the floor, not undoable past
     expect(h.redo()).toBe(b);
+    expect(h.current()).toBe(b);
     expect(h.redo()).toBe(c);
+    expect(h.current()).toBe(c);
     expect(h.canRedo()).toBe(false);
   });
 

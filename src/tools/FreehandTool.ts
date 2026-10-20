@@ -28,8 +28,14 @@ export abstract class FreehandTool implements Tool {
     this.drawing = true;
     this.last = p.point;
     this.color = this.colorFor(p, ctx);
-    // A plain click leaves a dot: a zero-length round-capped segment.
-    this.segment(p.point, p.point, ctx);
+    if (this.id === "pencil" && Math.round(ctx.size) <= 1) {
+      const o = ctx.overlay;
+      o.fillStyle = this.color;
+      o.fillRect(Math.floor(p.point.x), Math.floor(p.point.y), 1, 1);
+    } else {
+      // A plain click leaves a dot: a zero-length round-capped segment.
+      this.segment(p.point, p.point, ctx);
+    }
   }
 
   onPointerMove(p: PointerInfo, ctx: ToolContext): void {
@@ -57,6 +63,35 @@ export abstract class FreehandTool implements Tool {
   private segment(from: Point, to: Point, ctx: ToolContext): void {
     const o = ctx.overlay;
     o.save();
+    if (this.id === "pencil" && Math.round(ctx.size) <= 1) {
+      o.fillStyle = this.color;
+      let x0 = Math.floor(from.x);
+      let y0 = Math.floor(from.y);
+      const x1 = Math.floor(to.x);
+      const y1 = Math.floor(to.y);
+      const dx = Math.abs(x1 - x0);
+      const dy = Math.abs(y1 - y0);
+      const sx = x0 < x1 ? 1 : -1;
+      const sy = y0 < y1 ? 1 : -1;
+      let err = dx - dy;
+
+      while (true) {
+        o.fillRect(x0, y0, 1, 1);
+        if (x0 === x1 && y0 === y1) break;
+        const e2 = 2 * err;
+        if (e2 > -dy) {
+          err -= dy;
+          x0 += sx;
+        }
+        if (e2 < dx) {
+          err += dx;
+          y0 += sy;
+        }
+      }
+      o.restore();
+      return;
+    }
+
     // Hard-edged strokes snap to the pixel grid (with the odd-width half-pixel
     // shift) so their committed width is exact; smooth strokes stay free.
     let a = from;
