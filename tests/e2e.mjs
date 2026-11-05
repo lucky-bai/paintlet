@@ -740,6 +740,45 @@ step(
   `toolBehindDialog=${behindDialog}`,
 );
 
+// ── text: ⌘Z after clicking away undoes the canvas; mid-typing it doesn't ──
+// Clicking elsewhere with the Text tool commits the old text AND opens a fresh,
+// focused, empty editor. Undo used to see "a textarea is focused" and hand ⌘Z
+// to the browser (a no-op on an empty box), so the committed text could only
+// be undone after switching tools. An untouched box has nothing to undo, so
+// undo must reach the canvas; once typed into, ⌘Z belongs to the textarea.
+await reset();
+await setTool("pencil");
+await setTool("text");
+await clickAt(100, 100);
+await page.keyboard.type("HELLO");
+await clickAt(100, 200); // commits HELLO, opens a new editor
+await page.keyboard.type("WORLD");
+await clickAt(100, 300); // commits WORLD, opens a new (untouched) editor
+await page.waitForTimeout(60);
+const helloBefore = await countPx(0, 95, 95, 120, 40, "dark");
+const worldBefore = await countPx(0, 95, 195, 120, 40, "dark");
+await action("undo"); // untouched box → canvas undo removes WORLD only
+await page.waitForTimeout(60);
+const helloAfter1 = await countPx(0, 95, 95, 120, 40, "dark");
+const worldAfter1 = await countPx(0, 95, 195, 120, 40, "dark");
+step(
+  "text: undo after clicking away undoes the last committed text",
+  helloBefore > 20 && worldBefore > 20 && worldAfter1 === 0 && helloAfter1 === helloBefore,
+  `hello=${helloBefore}→${helloAfter1} world=${worldBefore}→${worldAfter1}`,
+);
+// Now type into the open box: ⌘Z is the textarea's again, and the canvas stays.
+await clickAt(100, 300);
+await page.keyboard.type("abc");
+await action("undo");
+await page.waitForTimeout(60);
+const taValue = await page.locator("textarea").inputValue();
+const helloAfter2 = await countPx(0, 95, 95, 120, 40, "dark");
+step(
+  "text: undo while typing stays with the textarea",
+  taValue !== "abc" && helloAfter2 === helloBefore,
+  `textarea="${taValue}" hello=${helloAfter2}`,
+);
+
 await page.screenshot({ path: path.join(ARTIFACTS, "e2e-final.png") });
 await browser.close();
 await server.close();

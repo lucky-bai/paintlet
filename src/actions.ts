@@ -76,8 +76,16 @@ export function saveFileAs(): void {
 // — Edit —
 // Undo/redo first cancel any in-progress tool gesture (a half-built polygon or
 // curve) so its rubber-band preview can't linger over the restored pixels.
+//
+// A focused text field normally owns ⌘Z (native undo of its typing). The one
+// exception is the text tool's editor before its first keystroke: it has nothing
+// to undo, and it is exactly what holds focus right after click-away commits the
+// previous text, so ⌘Z there must undo the canvas.
+function fieldOwnsUndo(): boolean {
+  return editableFocused() && !stageHooks.untouchedTextEditorFocused?.();
+}
 export function undo(): void {
-  if (editableFocused()) {
+  if (fieldOwnsUndo()) {
     document.execCommand("undo");
     return;
   }
@@ -85,7 +93,7 @@ export function undo(): void {
   engine.undo();
 }
 export function redo(): void {
-  if (editableFocused()) {
+  if (fieldOwnsUndo()) {
     document.execCommand("redo");
     return;
   }
