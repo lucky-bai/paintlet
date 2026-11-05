@@ -28,7 +28,9 @@ const LINE_HEIGHT = 1.2;
 const fontString = (ts: TextStyle, scale = 1) =>
   `${ts.italic ? "italic " : ""}${ts.bold ? "bold " : ""}${ts.fontSize * scale}px ${ts.fontFamily}`;
 
-type TextEdit = { cx: number; cy: number; value: string };
+// `touched` flips on the first keystroke. Until then the box has no native undo
+// history, so ⌘Z belongs to the canvas (see stageHooks.untouchedTextEditorFocused).
+type TextEdit = { cx: number; cy: number; value: string; touched?: boolean };
 
 // Hosts the stacked base + overlay + selection canvases and owns all pointer
 // plumbing: map screen → logical coords, build a ToolContext from current store
@@ -229,6 +231,10 @@ export function CanvasStage() {
         setTextEdit(null);
       }
     };
+    stageHooks.untouchedTextEditorFocused = () => {
+      const t = textEditRef.current;
+      return !!t && !t.touched && document.activeElement === textareaRef.current;
+    };
     stageHooks.cancelToolSession = () => {
       const id = usePaintStore.getState().activeToolId;
       if (id === "select" || id === "freeSelect" || id === "text") return;
@@ -238,6 +244,7 @@ export function CanvasStage() {
     return () => {
       stageHooks.flushTextEdit = null;
       stageHooks.cancelToolSession = null;
+      stageHooks.untouchedTextEditorFocused = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -881,7 +888,9 @@ export function CanvasStage() {
                 value={textEdit.value}
                 spellCheck={false}
                 wrap="off"
-                onChange={(e) => setTextEdit({ ...textEdit, value: e.target.value })}
+                onChange={(e) =>
+                  setTextEdit({ ...textEdit, value: e.target.value, touched: true })
+                }
                 onKeyDown={(e) => {
                   // Enter inserts a newline (multi-line); Esc cancels the edit.
                   if (e.key === "Escape") {
